@@ -1,0 +1,108 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>08_源码索引与证据</title><style>body{margin:0;background:#f4f6fa;color:#18283b;font:16px/1.8 "Segoe UI","Microsoft YaHei",sans-serif}nav{position:fixed;width:235px;top:0;bottom:0;overflow:auto;padding:25px 18px;background:#132b43;color:white;box-sizing:border-box}nav a{display:block;color:#d7e9fb;text-decoration:none;margin:12px 0;font-size:14px}nav strong{font-size:20px}main{margin-left:235px;max-width:1080px;padding:38px 48px 90px}h1{font-size:32px;line-height:1.4;color:#163c60}h2{margin-top:42px;border-bottom:2px solid #d9e5f1;padding-bottom:8px;color:#24547c}a{color:#126ca0}table{border-collapse:collapse;width:100%;font-size:14px;display:block;overflow:auto;background:white}td,th{border:1px solid #cdd8e4;padding:9px 12px;vertical-align:top}th{background:#e7eff8}pre{background:#132b43;color:#edf5fd;padding:20px;overflow:auto;border-radius:8px;line-height:1.6;font-size:13px}code{font-family:Consolas,"Microsoft YaHei",monospace;overflow-wrap:anywhere}p code,li code,td code{background:#e6edf4;padding:2px 4px;border-radius:3px}blockquote{border-left:4px solid #3685b7;margin-left:0;padding-left:18px}footer{margin-top:45px;border-top:1px solid #ccc;padding-top:12px;color:#62768a;font-size:13px}.source{white-space:pre;font:13px/1.65 Consolas,monospace;background:white;padding:20px;overflow:auto}.line{display:block}.line:target{background:#fff0b0}.ln{display:inline-block;width:55px;color:#789;text-decoration:none;user-select:none}.banner{padding:18px;background:#e5effa;border-radius:10px}.flow{display:flex;flex-wrap:wrap;gap:9px;margin:25px 0}.flow span{padding:12px;background:#dae8f7;border:1px solid #b4ccdf;border-radius:6px;font-size:14px}@media(max-width:900px){nav{position:relative;width:auto}main{margin:0;padding:22px}nav a{display:inline-block;margin:5px 12px 5px 0}}@media print{nav{display:none}main{margin:0;padding:0}pre{white-space:pre-wrap;color:black;background:#eee}}main img{display:block;width:100%;height:auto;border:1px solid #d5e0ea;border-radius:8px;background:white} main a:has(img){display:block;cursor:zoom-in}</style><nav><strong>DeepEP Ascend</strong><p>源码详解 · 2026-10-14</p><a href="00_阅读入口.html">00 阅读入口</a><a href="01_项目介绍与架构.html">01 项目介绍与架构</a><a href="02_安装使用与接口契约.html">02 安装使用与接口契约</a><a href="03_调用链与通信初始化.html">03 调用链与通信初始化</a><a href="04_Dispatch执行流程.html">04 Dispatch执行流程</a><a href="05_Combine执行流程.html">05 Combine执行流程</a><a href="06_内存布局与算例.html">06 内存布局与算例</a><a href="07_测试性能与同类实现对照.html">07 测试性能与同类实现对照</a><a href="08_源码索引与证据.html">08 源码索引与证据</a></nav><main><h1 id="_1">源码索引与证据</h1>
+<h2 id="_2">固定版本</h2>
+<ul>
+<li>原始仓库：<code>deepseek-ai/DeepEP-Ascend</code></li>
+<li>提交：<code>3b25377d04b24fc6154698ded78a2bcb2c59afff</code></li>
+<li>DeepJIT gitlink：<code>65f513952b8771408a19202f65e36398522db6db</code>，本地未初始化。</li>
+<li>clangd-ascend gitlink：<code>f407eca30e07e647ce2e556f9b08e145b65362c7</code>，本地未初始化。</li>
+<li>分析日期：2026-10-14。</li>
+</ul>
+<p>源码链接直接指向上一级仓库中的文件，不再保存源码或带行号 HTML 副本。链接文字中的行号对应上述分析提交，仓库代码更新后可能变化；普通浏览器不保证定位到源码行。<code>source_manifest.json</code> 的路径相对于仓库根目录，保留分析版本的 SHA256 和行数，用于核对版本，不包含未初始化子模块的内部源码。</p>
+<h2 id="_3">核心源码导航</h2>
+<table>
+<thead>
+<tr>
+<th>层次</th>
+<th>首读位置</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Python API</td>
+<td><a href="../deep_ep/buffers/ep.py">deep_ep/buffers/ep.py:163</a></td>
+</tr>
+<tr>
+<td>handle与排序</td>
+<td><a href="../deep_ep/buffers/ep.py">deep_ep/buffers/ep.py:21</a></td>
+</tr>
+<tr>
+<td>event</td>
+<td><a href="../deep_ep/utils/event.py">deep_ep/utils/event.py:8</a></td>
+</tr>
+<tr>
+<td>pybind</td>
+<td><a href="../csrc/python_api.cpp">csrc/python_api.cpp:18</a></td>
+</tr>
+<tr>
+<td>Host dispatch</td>
+<td><a href="../csrc/buffers/ep.hpp">csrc/buffers/ep.hpp:89</a></td>
+</tr>
+<tr>
+<td>Host combine</td>
+<td><a href="../csrc/buffers/ep.hpp">csrc/buffers/ep.hpp:412</a></td>
+</tr>
+<tr>
+<td>Host size hint</td>
+<td><a href="../csrc/buffers/ep.hpp">csrc/buffers/ep.hpp:581</a></td>
+</tr>
+<tr>
+<td>JIT集成</td>
+<td><a href="../csrc/runtime/jit.hpp">csrc/runtime/jit.hpp:74</a></td>
+</tr>
+<tr>
+<td>Dispatch issue</td>
+<td><a href="../deep_ep/include/deep_ep/impls/ep/dispatch.hpp">deep_ep/include/deep_ep/impls/ep/dispatch.hpp:559</a></td>
+</tr>
+<tr>
+<td>Dispatch SIMT</td>
+<td><a href="../deep_ep/include/deep_ep/impls/ep/dispatch.hpp">deep_ep/include/deep_ep/impls/ep/dispatch.hpp:86</a></td>
+</tr>
+<tr>
+<td>Dispatch copy epilogue</td>
+<td><a href="../deep_ep/include/deep_ep/impls/ep/dispatch_copy_epilogue.hpp">deep_ep/include/deep_ep/impls/ep/dispatch_copy_epilogue.hpp:181</a></td>
+</tr>
+<tr>
+<td>Combine issue</td>
+<td><a href="../deep_ep/include/deep_ep/impls/ep/combine.hpp">deep_ep/include/deep_ep/impls/ep/combine.hpp:165</a></td>
+</tr>
+<tr>
+<td>Combine SIMT</td>
+<td><a href="../deep_ep/include/deep_ep/impls/ep/combine.hpp">deep_ep/include/deep_ep/impls/ep/combine.hpp:59</a></td>
+</tr>
+<tr>
+<td>Combine reduce epilogue</td>
+<td><a href="../deep_ep/include/deep_ep/impls/ep/combine_reduce_epilogue.hpp">deep_ep/include/deep_ep/impls/ep/combine_reduce_epilogue.hpp:49</a></td>
+</tr>
+<tr>
+<td>RingReducer</td>
+<td><a href="../deep_ep/include/deep_ep/impls/ep/combine_utils.hpp">deep_ep/include/deep_ep/impls/ep/combine_utils.hpp:97</a></td>
+</tr>
+<tr>
+<td>token布局</td>
+<td><a href="../deep_ep/include/deep_ep/layout/ep/token.hpp">deep_ep/include/deep_ep/layout/ep/token.hpp:9</a></td>
+</tr>
+<tr>
+<td>workspace</td>
+<td><a href="../deep_ep/include/deep_ep/layout/ep/workspace.hpp">deep_ep/include/deep_ep/layout/ep/workspace.hpp:8</a></td>
+</tr>
+<tr>
+<td>HCCL资源</td>
+<td><a href="../csrc/kernels/comm/hccl.hpp">csrc/kernels/comm/hccl.hpp:30</a></td>
+</tr>
+<tr>
+<td>SQ/CQ</td>
+<td><a href="../deep_ep/include/deep_ep/comm/handle.hpp">deep_ep/include/deep_ep/comm/handle.hpp:346</a></td>
+</tr>
+<tr>
+<td>barrier</td>
+<td><a href="../deep_ep/include/deep_ep/comm/barrier.hpp">deep_ep/include/deep_ep/comm/barrier.hpp:115</a></td>
+</tr>
+<tr>
+<td>测试</td>
+<td><a href="../tests/ep/test_ep.py">tests/ep/test_ep.py:47</a></td>
+</tr>
+</tbody>
+</table>
+<h2 id="_4">证据边界</h2>
+<p>已对照Python包装、C++ Host分配、JIT实例参数、四个设备kernel、通信布局和测试断言；同时阅读三处参考目录的相关分析。文档中的字节数与最小路由例子是从源码公式推导的演算。本文没有运行构建脚本、安装到NPU服务器、执行设备测试、验证README带宽或核验商业固件发布状态。</p>
+<p>特别需要上板验证的内容包括具体拓扑的channel可用性、shape组合的JIT编译、UB/SQ资源边界、零token和极端mask、跨stream生命周期、长时间buffer复用，以及应用真实GEMM的加权/反向语义。</p><footer>源码基线 3b25377d04b24fc6154698ded78a2bcb2c59afff · 静态分析，图示不代表实测耗时</footer></main></html>

@@ -1,0 +1,363 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>06_内存布局与算例</title><style>body{margin:0;background:#f4f6fa;color:#18283b;font:16px/1.8 "Segoe UI","Microsoft YaHei",sans-serif}nav{position:fixed;width:235px;top:0;bottom:0;overflow:auto;padding:25px 18px;background:#132b43;color:white;box-sizing:border-box}nav a{display:block;color:#d7e9fb;text-decoration:none;margin:12px 0;font-size:14px}nav strong{font-size:20px}main{margin-left:235px;max-width:1080px;padding:38px 48px 90px}h1{font-size:32px;line-height:1.4;color:#163c60}h2{margin-top:42px;border-bottom:2px solid #d9e5f1;padding-bottom:8px;color:#24547c}a{color:#126ca0}table{border-collapse:collapse;width:100%;font-size:14px;display:block;overflow:auto;background:white}td,th{border:1px solid #cdd8e4;padding:9px 12px;vertical-align:top}th{background:#e7eff8}pre{background:#132b43;color:#edf5fd;padding:20px;overflow:auto;border-radius:8px;line-height:1.6;font-size:13px}code{font-family:Consolas,"Microsoft YaHei",monospace;overflow-wrap:anywhere}p code,li code,td code{background:#e6edf4;padding:2px 4px;border-radius:3px}blockquote{border-left:4px solid #3685b7;margin-left:0;padding-left:18px}footer{margin-top:45px;border-top:1px solid #ccc;padding-top:12px;color:#62768a;font-size:13px}.source{white-space:pre;font:13px/1.65 Consolas,monospace;background:white;padding:20px;overflow:auto}.line{display:block}.line:target{background:#fff0b0}.ln{display:inline-block;width:55px;color:#789;text-decoration:none;user-select:none}.banner{padding:18px;background:#e5effa;border-radius:10px}.flow{display:flex;flex-wrap:wrap;gap:9px;margin:25px 0}.flow span{padding:12px;background:#dae8f7;border:1px solid #b4ccdf;border-radius:6px;font-size:14px}@media(max-width:900px){nav{position:relative;width:auto}main{margin:0;padding:22px}nav a{display:inline-block;margin:5px 12px 5px 0}}@media print{nav{display:none}main{margin:0;padding:0}pre{white-space:pre-wrap;color:black;background:#eee}}main img{display:block;width:100%;height:auto;border:1px solid #d5e0ea;border-radius:8px;background:white} main a:has(img){display:block;cursor:zoom-in}</style><nav><strong>DeepEP Ascend</strong><p>源码详解 · 2026-10-14</p><a href="00_阅读入口.html">00 阅读入口</a><a href="01_项目介绍与架构.html">01 项目介绍与架构</a><a href="02_安装使用与接口契约.html">02 安装使用与接口契约</a><a href="03_调用链与通信初始化.html">03 调用链与通信初始化</a><a href="04_Dispatch执行流程.html">04 Dispatch执行流程</a><a href="05_Combine执行流程.html">05 Combine执行流程</a><a href="06_内存布局与算例.html">06 内存布局与算例</a><a href="07_测试性能与同类实现对照.html">07 测试性能与同类实现对照</a><a href="08_源码索引与证据.html">08 源码索引与证据</a></nav><main><h1 id="_1">内存布局与算例</h1>
+<h2 id="_2">执行与布局图解</h2>
+<p>图中箭头表示代码依赖，阶段位置不代表实测时间；内存块不按字节比例。点击 SVG 链接可查看矢量原图。</p>
+<h3 id="token-record">Token record 字节布局</h3>
+<p><a href="assets/token-records.svg" target="_blank"><img alt="Token record 字节布局" src="assets/token-records.svg" loading="lazy"></a></p>
+<p><a href="assets/token-records.svg">打开 SVG 矢量图</a> · <a href="assets/token-records.png">打开 PNG 原图</a></p>
+<h3 id="dispatch-source-major-expert-major">Dispatch 从 source-major 到 expert-major</h3>
+<p><a href="assets/dispatch-layout.svg" target="_blank"><img alt="Dispatch 从 source-major 到 expert-major" src="assets/dispatch-layout.svg" loading="lazy"></a></p>
+<p><a href="assets/dispatch-layout.svg">打开 SVG 矢量图</a> · <a href="assets/dispatch-layout.png">打开 PNG 原图</a></p>
+<h3 id="combine-reduce-window">Combine reduce window 的两个槽组分支</h3>
+<p><a href="assets/combine-layout.svg" target="_blank"><img alt="Combine reduce window 的两个槽组分支" src="assets/combine-layout.svg" loading="lazy"></a></p>
+<p><a href="assets/combine-layout.svg">打开 SVG 矢量图</a> · <a href="assets/combine-layout.png">打开 PNG 原图</a></p>
+<h3 id="kernel-ub">四个 kernel 的 UB 分区与空间复用</h3>
+<p><a href="assets/ub-layouts.svg" target="_blank"><img alt="四个 kernel 的 UB 分区与空间复用" src="assets/ub-layouts.svg" loading="lazy"></a></p>
+<p><a href="assets/ub-layouts.svg">打开 SVG 矢量图</a> · <a href="assets/ub-layouts.png">打开 PNG 原图</a></p>
+<h2 id="_3">符号与地址空间</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>P、E、L</td>
+<td>rank 数、总专家数、每 rank 专家数 E/P</td>
+</tr>
+<tr>
+<td>T、M</td>
+<td>本地实际 token 数、所有 rank 约定的最大 token 数</td>
+</tr>
+<tr>
+<td>H、K、A</td>
+<td>hidden 元素数、top-k、专家对齐粒度</td>
+</tr>
+<tr>
+<td>S、F</td>
+<td>scale pack 数、scale 字节数 F=2S</td>
+</tr>
+<tr>
+<td>B</td>
+<td>hidden 字节数，BF16 为 2H，FP8 为 H</td>
+</tr>
+<tr>
+<td>align(x,n)</td>
+<td>向上对齐到 n 的倍数</td>
+</tr>
+<tr>
+<td>V</td>
+<td>本次使用的 AIV 数</td>
+</tr>
+</tbody>
+</table>
+<p>GM 包含输入输出张量、对称通信窗口、send staging、handle metadata；UB 是每个 AIV 独立的片上空间；host workspace 是设备映射的 CPU 内存。不要把 UB（Unified Buffer）与 UBMEM（通信协议/远端可达路径）混为一谈。</p>
+<h2 id="_4">对称分配的总布局</h2>
+<pre><code class="language-text">SymmetricMemory::ptr = workspace
+  +0                         EPSignals（sizeof，2MiB 对齐）
+  +num_workspace_bytes       context-&gt;buffer
+       [dispatch 窗口 或 combine reduce 窗口，复用同一块]
+       [可选 LB storage]
+  +num_gpu_buffer_bytes      local_rdma_storage_ptr（EP 此处无额外容量）
+</code></pre>
+<p>总申请逻辑长度为 <code>workspace_bytes + align(gpu_buffer_bytes + rdma_storage_bytes, 2MiB)</code>。EP 的 gpu_buffer_bytes 含主 buffer 和 LB。<code>get_buffer_size_hint()</code> 返回主窗口大小，不包含 workspace、host workspace、普通 PyTorch 张量、send staging 和底层通信队列。见 <a href="../csrc/kernels/comm/api.hpp">csrc/kernels/comm/api.hpp:16</a>。</p>
+<p>通过 <code>get_sym_ptr</code> 做远端字段寻址：<code>remote_common_base + (local_field - local_common_base)</code>。HCCL/HCOMM 注册的是整个对称分配，因此窗口偏移也相对于 workspace 基址构造。</p>
+<h2 id="dispatch-tokenlayout">Dispatch TokenLayout</h2>
+<p>假设 hidden 字节数满足搬运对齐约束，非 cached 记录为：</p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>相对 record 字节偏移</th>
+<th>有效长度</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>hidden</td>
+<td>0</td>
+<td>B</td>
+</tr>
+<tr>
+<td>sf packs</td>
+<td>B（有 SF 时）</td>
+<td>F，物理占 <code>align(F,32)</code></td>
+</tr>
+<tr>
+<td>topk_idx</td>
+<td><code>B+align(F,32)</code></td>
+<td>8K，后补到 <code>align(8K,32)</code></td>
+</tr>
+<tr>
+<td>topk_weights</td>
+<td><code>B+align(F,32)+align(8K,32)</code></td>
+<td>4K</td>
+</tr>
+<tr>
+<td>source global index</td>
+<td>上一项起点 +4K</td>
+<td>4</td>
+</tr>
+<tr>
+<td>尾 padding</td>
+<td>global index 后</td>
+<td>metadata 总长度补到 32B</td>
+</tr>
+</tbody>
+</table>
+<pre><code class="language-text">D_full = B + align(F,32) + align(align(8K,32) + 4K + 4,32)
+D_cached = B + align(F,32) + align(4K,32)
+C = 2H + align(4K,32)      # combine record
+</code></pre>
+<p>F=0 时 SF 段长度为零。cached 不再运输 index/global id；Host 的容量检查与 metadata staging 分配仍按完整 record 做保守估算，设备按 cached 布局解释。源码 <code>TokenLayout</code> 的 hidden 偏移假设对齐，不能由公式推导出任意 H 都合法。见 <a href="../deep_ep/include/deep_ep/layout/ep/token.hpp">deep_ep/include/deep_ep/layout/ep/token.hpp:9</a>。</p>
+<p>H=7168、K=6 时：</p>
+<table>
+<thead>
+<tr>
+<th>record</th>
+<th style="text-align: right;">hidden</th>
+<th style="text-align: right;">scale</th>
+<th style="text-align: right;">metadata/weights</th>
+<th style="text-align: right;">总字节</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>BF16 dispatch 非 cached</td>
+<td style="text-align: right;">14336</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">96</td>
+<td style="text-align: right;">14432</td>
+</tr>
+<tr>
+<td>BF16 dispatch cached</td>
+<td style="text-align: right;">14336</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">32</td>
+<td style="text-align: right;">14368</td>
+</tr>
+<tr>
+<td>FP8 dispatch 非 cached，128 分组 scale</td>
+<td style="text-align: right;">7168</td>
+<td style="text-align: right;">224</td>
+<td style="text-align: right;">96</td>
+<td style="text-align: right;">7488</td>
+</tr>
+<tr>
+<td>FP8 dispatch cached，同上</td>
+<td style="text-align: right;">7168</td>
+<td style="text-align: right;">224</td>
+<td style="text-align: right;">32</td>
+<td style="text-align: right;">7424</td>
+</tr>
+<tr>
+<td>BF16 combine</td>
+<td style="text-align: right;">14336</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">32</td>
+<td style="text-align: right;">14368</td>
+</tr>
+</tbody>
+</table>
+<p>BF16 非 cached record 的精确字段为 hidden <code>[0,14336)</code>，idx <code>[14336,14384)</code>，idx 对齐空隙 <code>[14384,14400)</code>，weights <code>[14400,14424)</code>，source id <code>[14424,14428)</code>，尾空隙 <code>[14428,14432)</code>。这不是 480B/32B flag 交织格式。</p>
+<h2 id="dispatch">Dispatch 窗口与接收输出是两种布局</h2>
+<p>在目标 rank 上，通信窗口地址为：</p>
+<pre><code class="language-text">buffer + (source_rank*M + source_local_slot)*D
+</code></pre>
+<p>形状概念上是 <code>[P,M,D]</code>，source partition 内前 <code>count[source]</code> 条有效，剩余为容量。逻辑 recv stream 按 source-rank 顺序拼接各有效前缀，用 rank psum 跳过容量空洞。</p>
+<p>最终 recv_x 是 expert-major 的普通连续矩阵，每专家有效行之后有 padding。通信窗口的 source_local_slot 不是 expanded slot；handle 负责维护映射。</p>
+<pre><code class="language-text">窗口：[src0 的 M 槽][src1 的 M 槽] ... [srcP-1 的 M 槽]
+             ↓ 跳空洞形成逻辑接收流
+metadata：[recv0][recv1] ... [recvR-1]，每行 K+2 个 int32
+             ↓ 按本地专家展开
+recv_x：[expert0有效|padding][expert1有效|padding] ...
+</code></pre>
+<h2 id="ephandle">EPHandle 张量</h2>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>dtype / shape</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>topk_idx</code></td>
+<td>int64 <code>[T,K]</code></td>
+<td>保留原路由引用，combine 和 cached 必需</td>
+</tr>
+<tr>
+<td><code>dst_buffer_slot_idx</code></td>
+<td>int32 <code>[T,K]</code></td>
+<td>发往目标 rank 的 source partition slot，去重/无效为 -1</td>
+</tr>
+<tr>
+<td><code>dst_gsge_idx</code></td>
+<td>int32 <code>[T,K]</code></td>
+<td>AIV 内 SGE pair 序号；本地/去重/无效为 -1</td>
+</tr>
+<tr>
+<td><code>psum_num_recv_tokens_per_rank</code></td>
+<td>int32 <code>[P]</code></td>
+<td>每源 rank 去重接收数 inclusive sum</td>
+</tr>
+<tr>
+<td><code>psum_num_recv_tokens_per_expert</code></td>
+<td>int32 <code>[L]</code></td>
+<td>expert_start + 当前有效 count</td>
+</tr>
+<tr>
+<td><code>num_unaligned_recv_tokens_per_expert</code></td>
+<td>int32 <code>[L]</code></td>
+<td>实际专家数</td>
+</tr>
+<tr>
+<td><code>recv_src_metadata</code></td>
+<td>int32 <code>[R_alloc,K+2]</code></td>
+<td>K 个 expanded slot、global source id、最后 local top-k 下标</td>
+</tr>
+<tr>
+<td><code>num_recv_tokens_per_expert_list</code></td>
+<td>Python list</td>
+<td>CPU sync 时每专家补齐长度；无 sync 可为空</td>
+</tr>
+</tbody>
+</table>
+<p>未同步 Host 时 Python <code>num_recv_tokens/num_expanded_tokens</code> 是分配容量，不一定是真实数量。deterministic 模式还保留排序前 metadata 的副本，并重写当前 metadata 的 expanded slots。</p>
+<h2 id="combine">Combine 窗口</h2>
+<p>概念形状为 <code>[min(P,K),M,C]</code>，每条 record 的前 2H 字节为 BF16 partial，后面 <code>align(4K,32)</code> 字节为 top-k weight bits。</p>
+<p>P≥K 时槽组等于 master top-k 下标；P&lt;K 时槽组等于产生 partial 的专家 rank。源 token 位置固定为原 token_idx，无需收齐后再次进行 token 排序。不同专家 rank 的 master 槽互异，从而避免写冲突。</p>
+<p>窗口只填实际参与的槽；最终读取通过原路由的 rank 去重 mask 限定，空槽可以保留旧数据。不能绕开 metadata 对整个 <code>[min(P,K),M,H]</code> 盲目求和。</p>
+<h2 id="epsignals">EPSignals 布局</h2>
+<p><a href="../deep_ep/include/deep_ep/layout/ep/workspace.hpp">deep_ep/include/deep_ep/layout/ep/workspace.hpp:8</a> 定义：</p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>声明容量</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CommonSignals</td>
+<td>peer_ptrs[256]、barrier/grid 状态</td>
+<td>对称地址表与同步</td>
+</tr>
+<tr>
+<td>local_expert_histogram</td>
+<td><code>[2048][128]</code> int</td>
+<td>每专家独占 512B sector，降低同 sector 竞争</td>
+</tr>
+<tr>
+<td>remote_expert_histogram</td>
+<td><code>[2048]</code> int</td>
+<td>接收各 rank 专家计数归约</td>
+</tr>
+<tr>
+<td>local_rank_histogram</td>
+<td><code>[64][256]</code> int</td>
+<td>每 AIV 发往各 rank 的 count/前缀</td>
+</tr>
+<tr>
+<td>remote_rank_histogram</td>
+<td><code>[256]</code> int</td>
+<td>每源 rank 的接收 count</td>
+</tr>
+<tr>
+<td>host_rank_expert_count</td>
+<td><code>[256+2048]</code> int</td>
+<td>host 映射通知布局</td>
+</tr>
+<tr>
+<td>epilogue_expert_counter</td>
+<td><code>[64*2048]</code> int</td>
+<td>活动 <code>[V,L]</code> 行前缀计数，按 L 紧凑解释</td>
+</tr>
+</tbody>
+</table>
+<p>结构整体 <code>alignas(2MiB)</code>。声明最大容量不是实际 kernel 支持范围；dispatch persistent worker 另有限制 E≤512，arrival count 也另有限制。</p>
+<h2 id="ub">UB 布局和阶段复用</h2>
+<ul>
+<li>Dispatch issue：histogram/rank prefix、entry→rank/slot、SGE inverse map、Jetty/peer 描述、local-copy 标志；其后 metadata stage 与 hidden stage。metadata storage 与 hidden storage 分开，保护不同流水的生命周期。</li>
+<li>Dispatch epilogue：两份 expert state、4×32KiB histogram scratch；完成 histogram 后该空间复用为 token copy stage；另有两个 metadata stage 和零值 buffer。事件总数上限与 UB 容量共同限制 stage 数。</li>
+<li>Combine issue：Jetty/peer、remaining token、next recv slot、两级 8-token metadata；剩余划为最多 32 个 hidden ring slot。</li>
+<li>Combine epilogue：每 ring slot 为 hidden+weights record；需容纳 <code>min(P,K)+2</code> 个潜在输入，其中 +2 留给 bias。</li>
+</ul>
+<p>UB 总量来自运行时设备查询，模板静态断言验证特定 H/K/P/M/V 组合。调大 M 或减小 V 会增大单核 entry 表及 SQ 需求，不能只检查总通信窗口容量。</p>
+<h2 id="_5">容量计算实例</h2>
+<p>取 P=8、M=4096、H=7168、K=6，按源码公式计算：</p>
+<table>
+<thead>
+<tr>
+<th>项目</th>
+<th style="text-align: right;">字节数</th>
+<th style="text-align: right;">MiB</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>BF16 dispatch 主窗口 <code>P*M*14432</code></td>
+<td style="text-align: right;">472907776</td>
+<td style="text-align: right;">451</td>
+</tr>
+<tr>
+<td>实际测试 FP8 SF 的 dispatch 窗口</td>
+<td style="text-align: right;">245366784</td>
+<td style="text-align: right;">234</td>
+</tr>
+<tr>
+<td>FP8 size hint 的保守 dispatch 窗口</td>
+<td style="text-align: right;">252706816</td>
+<td style="text-align: right;">241</td>
+</tr>
+<tr>
+<td>combine 窗口 <code>min(P,K)*M*14368</code></td>
+<td style="text-align: right;">353107968</td>
+<td style="text-align: right;">336.75</td>
+</tr>
+<tr>
+<td>BF16 hint：max 后按 2MiB 对齐</td>
+<td style="text-align: right;">473956352</td>
+<td style="text-align: right;">452</td>
+</tr>
+<tr>
+<td>FP8 hint：max 后按 2MiB 对齐</td>
+<td style="text-align: right;">354418688</td>
+<td style="text-align: right;">338</td>
+</tr>
+</tbody>
+</table>
+<p>FP8 hint 用 <code>S=ceil(H/32)</code> 估算 SF pack 数，比测试的两个 int16/128 hidden 多一倍。该例 FP8 的最终主窗口由 combine 决定，所以并非 BF16 容量简单减半。</p>
+<p>以均衡满 top-k 为例，本地平均 expanded 有效行约 <code>P*T*K/P=T*K=24576</code>，但不是每次都相等；no-sync 上界使用 M 与 <code>min(K,L)</code>，可能显著大于平均值。recv_x、metadata、send_buffer、weights、确定性排序临时内存均额外占用显存。该算例为公式演算，不是 allocator 或 NPU 的实测峰值。</p>
+<h2 id="_6">可手工追踪的路由例子</h2>
+<p>取 P=2、E=4、L=2、K=3、M=4、A=2；仅用于解释索引（真实 kernel 的 H 等仍应满足断言）。rank0 部署专家0/1，rank1 部署专家2/3。设只有 rank0 的 token0 有路由 <code>[0,1,2]</code>，其余 token/rank 无有效路由。</p>
+<p>dispatch 向 rank0 发送一份 token，向 rank1 发送一份，而不是三份。rank0 expert counts 为 <code>[1,1]</code>，expert starts 为 <code>[0,2]</code>，expert psum 为 <code>[1,3]</code>，补齐后的总输出为 4 行：有效行0和2，padding 行1和3。rank1 counts 为 <code>[1,0]</code>，starts 为 <code>[0,2]</code>，psum 为 <code>[1,2]</code>，总输出为2行。</p>
+<table>
+<thead>
+<tr>
+<th>接收 rank</th>
+<th>metadata 的 K 个 slots</th>
+<th style="text-align: right;">global id</th>
+<th style="text-align: right;">master</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>rank0</td>
+<td><code>[0,2,-1]</code></td>
+<td style="text-align: right;"><code>0*M+0=0</code></td>
+<td style="text-align: right;">1</td>
+</tr>
+<tr>
+<td>rank1</td>
+<td><code>[-1,-1,0]</code></td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">2</td>
+</tr>
+</tbody>
+</table>
+<p>combine 在 rank0 把专家0和1的结果局部相加得到 partial0；rank1 只有专家2，直接以其结果发送 partial1。P&lt;K，所以两个 partial 分别写回源 rank0 的 group0/token0 与 group1/token0。最终 source rank0 加和这两个 partial，并可加入 bias。</p>
+<p>若改为 P=4、E=8、K=3，同路由 <code>[0,1,2]</code> 仍落在 rank0 与 rank1，但 P≥K，partial0 写 master group1，partial1 写 master group2；group0 不参与。这个分支解释了为什么 reduce_buffer 的第一维既不能一概叫 rank，也不能一概叫 top-k。</p><footer>源码基线 3b25377d04b24fc6154698ded78a2bcb2c59afff · 静态分析，图示不代表实测耗时</footer></main></html>

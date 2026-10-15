@@ -1,0 +1,109 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>03_调用链与通信初始化</title><style>body{margin:0;background:#f4f6fa;color:#18283b;font:16px/1.8 "Segoe UI","Microsoft YaHei",sans-serif}nav{position:fixed;width:235px;top:0;bottom:0;overflow:auto;padding:25px 18px;background:#132b43;color:white;box-sizing:border-box}nav a{display:block;color:#d7e9fb;text-decoration:none;margin:12px 0;font-size:14px}nav strong{font-size:20px}main{margin-left:235px;max-width:1080px;padding:38px 48px 90px}h1{font-size:32px;line-height:1.4;color:#163c60}h2{margin-top:42px;border-bottom:2px solid #d9e5f1;padding-bottom:8px;color:#24547c}a{color:#126ca0}table{border-collapse:collapse;width:100%;font-size:14px;display:block;overflow:auto;background:white}td,th{border:1px solid #cdd8e4;padding:9px 12px;vertical-align:top}th{background:#e7eff8}pre{background:#132b43;color:#edf5fd;padding:20px;overflow:auto;border-radius:8px;line-height:1.6;font-size:13px}code{font-family:Consolas,"Microsoft YaHei",monospace;overflow-wrap:anywhere}p code,li code,td code{background:#e6edf4;padding:2px 4px;border-radius:3px}blockquote{border-left:4px solid #3685b7;margin-left:0;padding-left:18px}footer{margin-top:45px;border-top:1px solid #ccc;padding-top:12px;color:#62768a;font-size:13px}.source{white-space:pre;font:13px/1.65 Consolas,monospace;background:white;padding:20px;overflow:auto}.line{display:block}.line:target{background:#fff0b0}.ln{display:inline-block;width:55px;color:#789;text-decoration:none;user-select:none}.banner{padding:18px;background:#e5effa;border-radius:10px}.flow{display:flex;flex-wrap:wrap;gap:9px;margin:25px 0}.flow span{padding:12px;background:#dae8f7;border:1px solid #b4ccdf;border-radius:6px;font-size:14px}@media(max-width:900px){nav{position:relative;width:auto}main{margin:0;padding:22px}nav a{display:inline-block;margin:5px 12px 5px 0}}@media print{nav{display:none}main{margin:0;padding:0}pre{white-space:pre-wrap;color:black;background:#eee}}main img{display:block;width:100%;height:auto;border:1px solid #d5e0ea;border-radius:8px;background:white} main a:has(img){display:block;cursor:zoom-in}</style><nav><strong>DeepEP Ascend</strong><p>源码详解 · 2026-10-14</p><a href="00_阅读入口.html">00 阅读入口</a><a href="01_项目介绍与架构.html">01 项目介绍与架构</a><a href="02_安装使用与接口契约.html">02 安装使用与接口契约</a><a href="03_调用链与通信初始化.html">03 调用链与通信初始化</a><a href="04_Dispatch执行流程.html">04 Dispatch执行流程</a><a href="05_Combine执行流程.html">05 Combine执行流程</a><a href="06_内存布局与算例.html">06 内存布局与算例</a><a href="07_测试性能与同类实现对照.html">07 测试性能与同类实现对照</a><a href="08_源码索引与证据.html">08 源码索引与证据</a></nav><main><h1 id="_1">调用链与通信初始化</h1>
+<h2 id="_2">导入与构建边界</h2>
+<pre><code class="language-text">setup.py
+  └─ 编译 csrc/python_api.cpp → deep_ep._C
+import deep_ep
+  └─ deep_ep/__init__.py:init_jit()
+       └─ _C.init_jit(package_root)
+            └─ csrc/runtime/jit.hpp:init_jit
+                 └─ LazyInit&lt;deep_jit::Runtime&lt;deep_jit::Ascend&gt;&gt;
+</code></pre>
+<p><code>init_jit</code> 建立以 EP 为配置前缀、以 package/include 为 include 根的 DeepJIT Config。设备架构、AIV 数、UB 容量由 Runtime 查询；kernel 的 shape、资源数、模式等作为模板参数进入 <code>std::format</code> 生成的实例源码。实际 token 数和指针等则作为 launch 实参。</p>
+<p>DeepJIT 子模块本地未初始化，因此本次可直接证明的调用链止于 <code>jit-&gt;compile()</code> 和 <code>jit-&gt;launch()</code> 的集成层，不声称逐行核验了 DeepJIT 内部 Bisheng 命令、动态加载和底层 runtime launch 实现。README 记录了这些运行时行为。见 <a href="../csrc/runtime/jit.hpp">csrc/runtime/jit.hpp:74</a>。</p>
+<h2 id="epbuffer">EPBuffer 初始化调用链</h2>
+<pre><code class="language-text">Python EPBuffer.__init__
+ ├─ get_buffer_size_hint → _C.calculate_ep_buffer_size
+ ├─ comm.get_hccl_comm_handle(group)
+ │    └─ group._get_backend(npu).get_hccl_comm_name(group.rank())
+ └─ _C.EPBuffer(...)
+      └─ C++ EPBuffer::EPBuffer
+           ├─ comm::Context(...sizeof(EPSignals), buffer+LB...)
+           │    └─ HCCLContext
+           │         ├─ SymmetricMemory：aclrtMalloc + memset
+           │         ├─ HcclCommMemReg
+           │         ├─ acquire_ubmem_channels
+           │         └─ acquire_jetties
+           ├─ set_common_signals：写入 peer 地址表
+           └─ aclrtMallocHost + aclrtHostRegister(MAPPED)
+Python 构造结束：npu synchronize → dist.barrier → npu synchronize
+</code></pre>
+<p>默认借用 torch process group 的 communicator，并缓存 HCCLCommHandle；这与 force_new_comm 的独立 communicator 路径不同。每组内 buffer 编号递增生成注册 UID，因此所有 rank 的构造顺序必须一致。见 <a href="../deep_ep/comm/handle.py">deep_ep/comm/handle.py:33</a>、<a href="../csrc/kernels/comm/hccl.hpp">csrc/kernels/comm/hccl.hpp:48</a>。</p>
+<p><code>SymmetricMemory</code> 默认使用 <code>ACL_MEM_MALLOC_HUGE1G_ONLY</code>，<code>use_huge1g_page=False</code> 改为 <code>ACL_MEM_MALLOC_HUGE_FIRST</code>；2MiB 是软件 buffer 对齐，不等于底层一定只占用这个粒度的实际页资源。</p>
+<h2 id="ubmem-ubc_ctp">UBMEM 与 UBC_CTP 初始化</h2>
+<ol>
+<li>通过 HCCL rank graph 获取 <code>layers[1]</code>，复制 layer 值，避免后续调用使返回数组失效。</li>
+<li>对每个非 self peer 找 <code>COMM_PROTOCOL_UB_MEM</code> 链接，用 <code>COMM_ENGINE_AIV</code> acquire channel；获取远端注册内存，建立 <code>peer_ptrs</code>。</li>
+<li>再为每个 peer 找 <code>COMM_PROTOCOL_UBC_CTP</code> 链接，并要求它们的本地 endpoint 相同。</li>
+<li>按 Jetty 数创建 HCOMM endpoint 并注册同一存储；交换独立 listen port，避免默认固定端口冲突。</li>
+<li>配置共享发送队列，channel 数为 <code>max(num_jetties, P-1)</code>；多出的 channel 用 <code>rank_idx ^ 1</code> 配对，解释了多 rank 必须为偶数的限制。</li>
+<li>建立供设备读取的 channel/Jetty/peer 元数据查找表。</li>
+</ol>
+<p>这些是所选拓扑的资源要求，不能将逻辑返回 <code>(1,P)</code> 理解为任意规模、任意物理网络都得到支持。见 <a href="../csrc/kernels/comm/hccl.hpp">csrc/kernels/comm/hccl.hpp:173</a>、<a href="../csrc/kernels/comm/hccl.hpp">csrc/kernels/comm/hccl.hpp:197</a>。</p>
+<h2 id="dispatch">Dispatch 完整链</h2>
+<pre><code class="language-text">deep_ep/buffers/ep.py:EPBuffer.dispatch
+ ├─ 参数与 cached handle 处理
+ └─ self.runtime.dispatch (= _C.EPBuffer.dispatch)
+      └─ csrc/buffers/ep.hpp:EPBuffer::dispatch
+           ├─ 参数检查、handle 张量和 metadata staging 分配
+           ├─ launch_dispatch
+           │    ├─ jit-&gt;compile(&quot;dispatch&quot;, 模板实例源码)
+           │    └─ jit-&gt;launch → dispatch_impl
+           └─ epilogue 闭包（立即运行，或登记到 EventOverlap）
+                ├─ 可选 Host count wait / 输出容量分配
+                ├─ launch_dispatch_copy_epilogue
+                │    └─ compile/launch → dispatch_copy_epilogue_impl
+                └─ 可选 SF 列主序转换
+Python finalize_dispatch
+ ├─ 构造 EPHandle
+ ├─ 可选 deterministic_sort
+ └─ 返回 recv_x / None / weights / handle
+</code></pre>
+<p>设备入口和 JIT 模板实参可在 <a href="../csrc/kernels/ep/dispatch.hpp">csrc/kernels/ep/dispatch.hpp:20</a> 与 <a href="../csrc/kernels/ep/dispatch.hpp">csrc/kernels/ep/dispatch.hpp:84</a> 对照。<code>num_hidden_bytes</code> 区分 BF16/FP8，cached、CPU sync、padding、A、P、E、K、M、AIV 数等会生成不同特化。</p>
+<h2 id="combine">Combine 完整链</h2>
+<pre><code class="language-text">EPBuffer.combine
+ ├─ 从 handle 取 metadata/topk_idx/psum/M/E/core 数
+ └─ C++ EPBuffer::combine
+      ├─ BF16/metadata/bias 校验
+      ├─ 分配独立 send_buffer
+      ├─ launch_combine → JIT → combine_impl
+      └─ epilogue 闭包
+           ├─ 分配 combined_x[T,H] 与可选 weights[T,K]
+           └─ launch_combine_reduce_epilogue
+                └─ JIT → combine_reduce_epilogue_impl
+</code></pre>
+<p>见 <a href="../csrc/buffers/ep.hpp">csrc/buffers/ep.hpp:412</a>、<a href="../csrc/kernels/ep/combine.hpp">csrc/kernels/ep/combine.hpp:18</a>。这里没有 op-plugin 包装、ACLNN GetWorkspaceSize 或 OPP tiling key；Host 层的“选择实例”通过 JIT 模板参数实现。</p>
+<h2 id="_3">完成语义的四层依赖</h2>
+<table>
+<thead>
+<tr>
+<th>层次</th>
+<th>机制</th>
+<th>保证的范围</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>核内</td>
+<td><code>asc_sync_notify/wait</code>、ring lock</td>
+<td>MTE2/V/S/MTE3 对 UB 和 GM 的先后关系</td>
+</tr>
+<tr>
+<td>本 rank 跨核</td>
+<td><code>SyncAll</code>、inter-arrive/wait</td>
+<td>AIV 协同清理、前缀广播、drain 后会合</td>
+</tr>
+<tr>
+<td>网络队列</td>
+<td>SQE/doorbell/CQE、<code>jetty.drain()</code></td>
+<td>等待已提交 URMA 工作的完成通知</td>
+</tr>
+<tr>
+<td>跨 rank</td>
+<td>UBMEM barrier signal 原子更新</td>
+<td>所有 rank 达到约定阶段</td>
+</tr>
+</tbody>
+</table>
+<p><code>comm::scalar::barrier</code> 在需要 flush/drain 的实例中先等待本地 MTE3，分摊 Jetty drain 到各 AIV，再会合；core 0 向每个 rank 的 signal 做原子加/减并轮询本地目标值，最后按模板选项再会合。两相 signal 与正负交替减少清零竞态。见 <a href="../deep_ep/include/deep_ep/comm/barrier.hpp">deep_ep/include/deep_ep/comm/barrier.hpp:115</a>。</p>
+<p>正常模式 <code>barrier_in_prologue=False</code>：issue 负责提交，epilogue 起始处 drain+跨 rank 同步后才读取接收数据。性能测试置 True 时把这段完成等待放到 issue kernel 尾部，epilogue 不重复。<strong>kernel 起始处的基础 barrier 在两种模式中仍存在</strong>；这个开关并非“完全打开/关闭所有 barrier”。</p>
+<p><code>HcommJetty::ring_doorbell</code> 写 packed head、执行 DDR DSB、写 doorbell 再 DSB。<code>drain()</code> 按 packed head 中的 completion 计数轮询 CQ；检查 owner、status、substatus，然后更新 tail。见 <a href="../deep_ep/include/deep_ep/comm/handle.hpp">deep_ep/include/deep_ep/comm/handle.hpp:346</a>、<a href="../deep_ep/include/deep_ep/comm/handle.hpp">deep_ep/include/deep_ep/comm/handle.hpp:398</a>。</p><footer>源码基线 3b25377d04b24fc6154698ded78a2bcb2c59afff · 静态分析，图示不代表实测耗时</footer></main></html>

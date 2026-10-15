@@ -1,0 +1,437 @@
+{
+  "commit": "3b25377d04b24fc6154698ded78a2bcb2c59afff",
+  "files": [
+    {
+      "path": ".gitignore",
+      "sha256": "5de9f5aae455755624bac5f82fb053d87c7dbf6de1f2680a82881f3e2eb067d1",
+      "lines": 15
+    },
+    {
+      "path": ".gitmodules",
+      "sha256": "588a028e5edb752ba616d0132412eb5572ba219e91c33c456827a3cc8a878da3",
+      "lines": 6
+    },
+    {
+      "path": "CMakeLists.txt",
+      "sha256": "7765c4c44e736eef163aed248f5c59aaec33aa51838270e9e35208b71f307c30",
+      "lines": 56
+    },
+    {
+      "path": "README.md",
+      "sha256": "b33e84a4c05609b1c8a7db774ae8d2aae7f107325d200b3000d592d1b69c0314",
+      "lines": 300
+    },
+    {
+      "path": "build.sh",
+      "sha256": "d65937ca13713996e3ef2e4981361cb3be86fc8a4ddcd4702b474bf8f6be679f",
+      "lines": 15
+    },
+    {
+      "path": "csrc/buffers/base.hpp",
+      "sha256": "3bd5f10165ec062b3f04a35ec28f73d261668d3c1792a19756dc97ac7a555974",
+      "lines": 63
+    },
+    {
+      "path": "csrc/buffers/bucket.hpp",
+      "sha256": "dc371661041ed0eacc0b6dee26bff552791fb857375ed3a594b10963a5856780",
+      "lines": 155
+    },
+    {
+      "path": "csrc/buffers/engram.hpp",
+      "sha256": "4766f56c944645e01d25135b7baedc475219db19f7df051e09f217b3ee7ac8c6",
+      "lines": 214
+    },
+    {
+      "path": "csrc/buffers/ep.hpp",
+      "sha256": "880a6e0779a5f1252a256a39e39a066f6072160e7ecd4d3d98282ddbe3b9f599",
+      "lines": 608
+    },
+    {
+      "path": "csrc/buffers/pp.hpp",
+      "sha256": "81f10a4c765fa46165ec2cd508e9b55ce3223f3744c3fe5408a2ba4a101a6fab",
+      "lines": 94
+    },
+    {
+      "path": "csrc/comm/api.hpp",
+      "sha256": "66a650c0c97cf1255005898e353e1b3ba4fb3811f4605791d97c1cb8660c2f90",
+      "lines": 5
+    },
+    {
+      "path": "csrc/comm/barrier.hpp",
+      "sha256": "d01ee6e65a991f68735f0caf3789d68848baa32d5ebc8240322de8e2bdae0a79",
+      "lines": 35
+    },
+    {
+      "path": "csrc/comm/handle.hpp",
+      "sha256": "2de759a2c1cab9cc8d75e542892e0571d508e7bcac2685786817ce4606a6f041",
+      "lines": 90
+    },
+    {
+      "path": "csrc/comm/stream.hpp",
+      "sha256": "5adb66df75d58d688484640c936747ddcab4fcdae279d8337742fd3f4802da16",
+      "lines": 29
+    },
+    {
+      "path": "csrc/indexing/main.cpp",
+      "sha256": "12adc5f7682d33b77097943f3d7c1cba12f3d7c51f1149f0fb45141c3cbb69f6",
+      "lines": 16
+    },
+    {
+      "path": "csrc/kernels/bucket/all_gather.hpp",
+      "sha256": "0780907102873454e9403f2351ad076c0372e5a40bf5ea70ac543776ec233ce9",
+      "lines": 40
+    },
+    {
+      "path": "csrc/kernels/comm/api.hpp",
+      "sha256": "bb4cd79742f23ac7b37f29dee79bf38ac85c5f44fc6dafd884c38c9070dce4af",
+      "lines": 103
+    },
+    {
+      "path": "csrc/kernels/comm/barrier.hpp",
+      "sha256": "885d9ceafcbc87e5675e260828d9c3df8015017771f6b2dd7a92a44c057bec19",
+      "lines": 31
+    },
+    {
+      "path": "csrc/kernels/comm/hccl.hpp",
+      "sha256": "92c21ba77211f2d0b1b897739f50ff926294521ad3d2993a55dd881e2c420b1b",
+      "lines": 334
+    },
+    {
+      "path": "csrc/kernels/comm/symmetric.hpp",
+      "sha256": "fb1b15f53207cd68969d161e96df31d43940b8b7ee0a88ea89c2e7a52976e7a6",
+      "lines": 31
+    },
+    {
+      "path": "csrc/kernels/engram/engram.hpp",
+      "sha256": "900ee2d22f9e21ee1b5ce77f37b40f08d58dff8d559ec2084c0197bf4a362d55",
+      "lines": 63
+    },
+    {
+      "path": "csrc/kernels/ep/api.hpp",
+      "sha256": "6b47f5a5000cc6bc474900dcf54a10418c527e20522b6875c915f52d7c8e8191",
+      "lines": 4
+    },
+    {
+      "path": "csrc/kernels/ep/combine.hpp",
+      "sha256": "385f47c6c2d46bb9c1304eaece7c7146b24793574bd2708517a8acce3e3ca08c",
+      "lines": 114
+    },
+    {
+      "path": "csrc/kernels/ep/dispatch.hpp",
+      "sha256": "870c4d78b465cf106849919434c5cc2eca9ba845f35793f0b7defde2d2a956bc",
+      "lines": 141
+    },
+    {
+      "path": "csrc/kernels/pp/pp_send_recv.hpp",
+      "sha256": "bf38f2488e3c72409728e0136887cf5d5e0ae8973163855448cb2cb796e29aa3",
+      "lines": 65
+    },
+    {
+      "path": "csrc/python_api.cpp",
+      "sha256": "a87c97491aef0c6d05562ec23f8ea14779db42cefb6b4e955966867cab6130e5",
+      "lines": 74
+    },
+    {
+      "path": "csrc/runtime/jit.hpp",
+      "sha256": "0bd806e40528802777059815583a5718ff789de233b63a42e4d6618370a16b71",
+      "lines": 120
+    },
+    {
+      "path": "csrc/utils/event.hpp",
+      "sha256": "8f329b8c55f300adad286b51cbee01ded667d8c5427230b5697b67c3dd168c34",
+      "lines": 27
+    },
+    {
+      "path": "csrc/utils/tensor.hpp",
+      "sha256": "8d93be7f0d05d936ee078584daed79078a2ed38dcd3f2c72127406f79ad62645",
+      "lines": 9
+    },
+    {
+      "path": "deep_ep/__init__.py",
+      "sha256": "d5b470e35195e524fa0cf762a8c13eb23dd7c354e15ae900ec80778d37f2c0ec",
+      "lines": 42
+    },
+    {
+      "path": "deep_ep/buffers/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "lines": 0
+    },
+    {
+      "path": "deep_ep/buffers/allocator.py",
+      "sha256": "5d1015bf50a7c48feb0b4a2e199beebca2d6caa6b307fd0d22e1e375ad7107d6",
+      "lines": 37
+    },
+    {
+      "path": "deep_ep/buffers/base.py",
+      "sha256": "115b09d2e7705016d594ec25f142cc8a838403d2d441b4bcc6f4a75ad197f13e",
+      "lines": 27
+    },
+    {
+      "path": "deep_ep/buffers/bucket.py",
+      "sha256": "a797599d211158a29c8d9ab8eb50037a9c1dcb67ae3186d0338f41d92297bb56",
+      "lines": 356
+    },
+    {
+      "path": "deep_ep/buffers/engram.py",
+      "sha256": "448b3879cead6572841fcd35340afb69fa75054da8d053d4e24c8e85da81c62a",
+      "lines": 149
+    },
+    {
+      "path": "deep_ep/buffers/ep.py",
+      "sha256": "ae83f103a968e1821982d86a4156beb70a1333510c152371fb6cefa6d8ac3b5f",
+      "lines": 649
+    },
+    {
+      "path": "deep_ep/buffers/pp.py",
+      "sha256": "e96e84f6593ace00a4c2e4ee1c2985379ed2e4f04b1feac4f193968d54cca016",
+      "lines": 86
+    },
+    {
+      "path": "deep_ep/comm/__init__.py",
+      "sha256": "997b48b51ff908fa03bb8b7f70741aa576b9d95113cd6772400919b46286625a",
+      "lines": 20
+    },
+    {
+      "path": "deep_ep/comm/barrier.py",
+      "sha256": "8e637d8a0abfd472416cc49aef9576bb96bdf9c600d7e4d24b7e39625bb94109",
+      "lines": 12
+    },
+    {
+      "path": "deep_ep/comm/handle.py",
+      "sha256": "c70cf2b647637dee9cd866d705ab0ea6e85bcf3554e09ab088400d243ac0e291",
+      "lines": 66
+    },
+    {
+      "path": "deep_ep/comm/stream.py",
+      "sha256": "2a7aa6bbbc1de378c484b02dcb02cbc6555bad6ab879a1463028451bbf24ac30",
+      "lines": 12
+    },
+    {
+      "path": "deep_ep/include/deep_ep/comm/barrier.hpp",
+      "sha256": "482676276c66f17e313ad82a9c2d45c6aaab64dade796574269b8083e2d2b3b1",
+      "lines": 186
+    },
+    {
+      "path": "deep_ep/include/deep_ep/comm/bucket.hpp",
+      "sha256": "da160b462abfa9a88b8c7ebb817a4152acef7d5b62e9cffcb1ac07d7937aeef2",
+      "lines": 44
+    },
+    {
+      "path": "deep_ep/include/deep_ep/comm/handle.hpp",
+      "sha256": "df3fa4d584790c7064125aca4c18732ee25ce86e4fe65f69cad900bf3f3f49a4",
+      "lines": 456
+    },
+    {
+      "path": "deep_ep/include/deep_ep/common/bitset.hpp",
+      "sha256": "192cbbfda4c2df5ab2a5a6bc3d61b4d7e61a6e46830730919a814226c36bf254",
+      "lines": 44
+    },
+    {
+      "path": "deep_ep/include/deep_ep/common/compiled.hpp",
+      "sha256": "c2f6f220abe5c4c6f67586359a31f4f85f12c788af27cacf2ff8a8e272975fc8",
+      "lines": 50
+    },
+    {
+      "path": "deep_ep/include/deep_ep/common/exception.hpp",
+      "sha256": "cbfc2f3fe43085812ecbd02f792a10c90d8399d266194430979a21663284860e",
+      "lines": 82
+    },
+    {
+      "path": "deep_ep/include/deep_ep/common/math.hpp",
+      "sha256": "8029bb9158b547978880a96a07354c65d76d9855d8fd89ec7ccb588e0b6a7666",
+      "lines": 40
+    },
+    {
+      "path": "deep_ep/include/deep_ep/common/reduction.hpp",
+      "sha256": "bcfc6cfd226f6db0a17b7681987ce3d1b4448a1f576f5ca4d99f59be44a9f449",
+      "lines": 89
+    },
+    {
+      "path": "deep_ep/include/deep_ep/common/simt.hpp",
+      "sha256": "11b695d470739952390e366027b40e9d089fe6ffca944cb41fcb385e5e07f810",
+      "lines": 51
+    },
+    {
+      "path": "deep_ep/include/deep_ep/common/utils.hpp",
+      "sha256": "ebb60c8dbcc5ee2fe8bc3ee8423a8685001f192bb9fcd5dd6982fd6fab38478f",
+      "lines": 51
+    },
+    {
+      "path": "deep_ep/include/deep_ep/impls/bucket/all_gather/urma.hpp",
+      "sha256": "531cf38786d35e2bf6e175b45d7e90f7a31ef78dd73863dc2e92b82255090082",
+      "lines": 50
+    },
+    {
+      "path": "deep_ep/include/deep_ep/impls/comm/barrier.hpp",
+      "sha256": "a958a5dee1952ef908a51bbb7807c80544b887127f1b9dee0ba4af668b6fec44",
+      "lines": 23
+    },
+    {
+      "path": "deep_ep/include/deep_ep/impls/engram/engram_fetch.hpp",
+      "sha256": "22ea478960870544727bf7843b6232c71eec3568d7479d4416d3b662ff6b8934",
+      "lines": 140
+    },
+    {
+      "path": "deep_ep/include/deep_ep/impls/ep/combine.hpp",
+      "sha256": "9c46e48869a9d28616c74db3a271ddfc3e54883a5138d1b1990b4e4100774a23",
+      "lines": 367
+    },
+    {
+      "path": "deep_ep/include/deep_ep/impls/ep/combine_reduce_epilogue.hpp",
+      "sha256": "ac91bfd7fa96323088b0c8537f95594d59c21972e233e2d501fbf550916dc712",
+      "lines": 157
+    },
+    {
+      "path": "deep_ep/include/deep_ep/impls/ep/combine_utils.hpp",
+      "sha256": "7051943383e82e581db6397b76260d7b12a520565d1fad21db9c10ef184cc422",
+      "lines": 174
+    },
+    {
+      "path": "deep_ep/include/deep_ep/impls/ep/dispatch.hpp",
+      "sha256": "aef714c7d6046d2d51437c9164fdb8af52629b724cbb94d4ecd956ff543e8462",
+      "lines": 867
+    },
+    {
+      "path": "deep_ep/include/deep_ep/impls/ep/dispatch_copy_epilogue.hpp",
+      "sha256": "0e591ca53bf0fd91c302ec75220e248eb356f441dc6caa3ccb144c5b1bad73dc",
+      "lines": 623
+    },
+    {
+      "path": "deep_ep/include/deep_ep/impls/pp/pp_send_recv.hpp",
+      "sha256": "795d0a0128042ccd4f2a63b7f6bbc8e120337d0d860b711c66bbb039005ce08d",
+      "lines": 168
+    },
+    {
+      "path": "deep_ep/include/deep_ep/layout/bucket/workspace.hpp",
+      "sha256": "6530bbea7cf1dbaca2aca21119d010084535bc78377abf944c4ee56e412c5e91",
+      "lines": 15
+    },
+    {
+      "path": "deep_ep/include/deep_ep/layout/common/signals.hpp",
+      "sha256": "2f9d6de7a62e77ae088f91dc1cf546269f0f6a884903951f2ac1d3c623fcf73f",
+      "lines": 26
+    },
+    {
+      "path": "deep_ep/include/deep_ep/layout/engram/workspace.hpp",
+      "sha256": "97d8844fdbfda1b783222853c895d205d802c232714b3a23a34ea98a10d82e11",
+      "lines": 39
+    },
+    {
+      "path": "deep_ep/include/deep_ep/layout/ep/token.hpp",
+      "sha256": "0da6366a4d8f80246a50e49de24432db40fd9be9c1d250a528116f101e3c57c8",
+      "lines": 132
+    },
+    {
+      "path": "deep_ep/include/deep_ep/layout/ep/workspace.hpp",
+      "sha256": "7cd496855aa934f10e245a5a01f17a26d3d7383903bb79459c8873c6f6c64b73",
+      "lines": 70
+    },
+    {
+      "path": "deep_ep/include/deep_ep/layout/pp/workspace.hpp",
+      "sha256": "6739f9a3f1c976d2a9c082fe92ef2f06c48a7f414889f14a23abaf421cce3659",
+      "lines": 16
+    },
+    {
+      "path": "deep_ep/utils/__init__.py",
+      "sha256": "ecc66fa0d9f59703da6a5e3457f058e53b03d1223e24a9e0014d863a1e4faaa2",
+      "lines": 3
+    },
+    {
+      "path": "deep_ep/utils/envs.py",
+      "sha256": "d864d7ac46da877527f527e2228769504f11dac520be266cb3682b353e0b4758",
+      "lines": 117
+    },
+    {
+      "path": "deep_ep/utils/event.py",
+      "sha256": "93b2a77bab884fe8d53379dd97519b99674a08d0403e6ffd44b2c7b1ece18bc8",
+      "lines": 94
+    },
+    {
+      "path": "deep_ep/utils/gate.py",
+      "sha256": "aa7a9793ec262bbf406bba2e77f392eeb5b57bda7cef2df630b1b6db6179e218",
+      "lines": 180
+    },
+    {
+      "path": "deep_ep/utils/math.py",
+      "sha256": "ce3d86d74a7401fbdc350bcfa7c39a3043c955bedb2e5d5a1e03ee72e95795cc",
+      "lines": 64
+    },
+    {
+      "path": "deep_ep/utils/refs.py",
+      "sha256": "92894fd898dfae22125903ee64a5bceec6d1548b33e73a1e543feb8cbc671094",
+      "lines": 247
+    },
+    {
+      "path": "deep_ep/utils/semantic.py",
+      "sha256": "c293ad0c2bdb401102735f426554ea08d18ebada0d07360096b8f31fdffa80d4",
+      "lines": 5
+    },
+    {
+      "path": "deep_ep/utils/testing.py",
+      "sha256": "7e1c4ea515008d7b702a2b99640fd34c3be39dd504d300d92567f996813bc0a0",
+      "lines": 394
+    },
+    {
+      "path": "develop.sh",
+      "sha256": "df782c91def0089b2be9d7f11447b435079e50b5fe725bb4d789de51649bc889",
+      "lines": 25
+    },
+    {
+      "path": "scripts/generate_pyi.py",
+      "sha256": "20e5a3a06ef20e720c7edf9750a12b7af74ea5a477def5e1e059de45ed1c33be",
+      "lines": 375
+    },
+    {
+      "path": "setup.py",
+      "sha256": "60c0ac135dc93b1b11e7345c4e49d27424eefa28ffb905d9c73bef5bb9264c06",
+      "lines": 177
+    },
+    {
+      "path": "tests/bucket/test_all_gather.py",
+      "sha256": "7fc49bf4a3f7a048847104db58d41c02891d399c77008b938aa40692060a88fc",
+      "lines": 144
+    },
+    {
+      "path": "tests/bucket/test_session.py",
+      "sha256": "676ac400f26bc0eb9f66b46e9f1a9fa506d7b0ebad3d05e46fd83a88972910aa",
+      "lines": 249
+    },
+    {
+      "path": "tests/buffer/test_allocation.py",
+      "sha256": "83387c8f698e422db2e020d253f5eb8be41047aa6fc54c9feb66308f08701dcc",
+      "lines": 60
+    },
+    {
+      "path": "tests/comm/test_barrier.py",
+      "sha256": "98bc75ca77d713fec143158577c97c5140d6b576b9a5972038801e2248bc9da7",
+      "lines": 67
+    },
+    {
+      "path": "tests/comm/test_stream.py",
+      "sha256": "fb5288a2d67fc02e03c86af32e6ea2c25c3a0877e0d14f443b4c475f1b00d919",
+      "lines": 135
+    },
+    {
+      "path": "tests/engram/test_engram.py",
+      "sha256": "5c8deb7bb14d5c3451bfda0c7b105ff5cd1dba8679c92c33dd225bd0ba0a9cc2",
+      "lines": 152
+    },
+    {
+      "path": "tests/ep/test_ep.py",
+      "sha256": "893679ad416bc4c98bf7506e350639e37130616f82a98518551b731f731e3a6f",
+      "lines": 590
+    },
+    {
+      "path": "tests/pp/test_pp.py",
+      "sha256": "1ed43c0c7146999e658c24f9319da06abc8c1c9dd292553c8e873893723f9d48",
+      "lines": 134
+    },
+    {
+      "path": "tests/utils/test_gate.py",
+      "sha256": "b585ea4c18048b29f147a8a3f6a780578390d90335f7d5932e4692537f493b20",
+      "lines": 75
+    }
+  ],
+  "path_base": "..",
+  "description": "Paths are relative to the repository root; hashes and line counts describe the analysis commit, not a bundled source copy."
+}

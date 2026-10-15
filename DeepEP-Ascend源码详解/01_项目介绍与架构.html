@@ -1,0 +1,116 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>01_项目介绍与架构</title><style>body{margin:0;background:#f4f6fa;color:#18283b;font:16px/1.8 "Segoe UI","Microsoft YaHei",sans-serif}nav{position:fixed;width:235px;top:0;bottom:0;overflow:auto;padding:25px 18px;background:#132b43;color:white;box-sizing:border-box}nav a{display:block;color:#d7e9fb;text-decoration:none;margin:12px 0;font-size:14px}nav strong{font-size:20px}main{margin-left:235px;max-width:1080px;padding:38px 48px 90px}h1{font-size:32px;line-height:1.4;color:#163c60}h2{margin-top:42px;border-bottom:2px solid #d9e5f1;padding-bottom:8px;color:#24547c}a{color:#126ca0}table{border-collapse:collapse;width:100%;font-size:14px;display:block;overflow:auto;background:white}td,th{border:1px solid #cdd8e4;padding:9px 12px;vertical-align:top}th{background:#e7eff8}pre{background:#132b43;color:#edf5fd;padding:20px;overflow:auto;border-radius:8px;line-height:1.6;font-size:13px}code{font-family:Consolas,"Microsoft YaHei",monospace;overflow-wrap:anywhere}p code,li code,td code{background:#e6edf4;padding:2px 4px;border-radius:3px}blockquote{border-left:4px solid #3685b7;margin-left:0;padding-left:18px}footer{margin-top:45px;border-top:1px solid #ccc;padding-top:12px;color:#62768a;font-size:13px}.source{white-space:pre;font:13px/1.65 Consolas,monospace;background:white;padding:20px;overflow:auto}.line{display:block}.line:target{background:#fff0b0}.ln{display:inline-block;width:55px;color:#789;text-decoration:none;user-select:none}.banner{padding:18px;background:#e5effa;border-radius:10px}.flow{display:flex;flex-wrap:wrap;gap:9px;margin:25px 0}.flow span{padding:12px;background:#dae8f7;border:1px solid #b4ccdf;border-radius:6px;font-size:14px}@media(max-width:900px){nav{position:relative;width:auto}main{margin:0;padding:22px}nav a{display:inline-block;margin:5px 12px 5px 0}}@media print{nav{display:none}main{margin:0;padding:0}pre{white-space:pre-wrap;color:black;background:#eee}}main img{display:block;width:100%;height:auto;border:1px solid #d5e0ea;border-radius:8px;background:white} main a:has(img){display:block;cursor:zoom-in}</style><nav><strong>DeepEP Ascend</strong><p>源码详解 · 2026-10-14</p><a href="00_阅读入口.html">00 阅读入口</a><a href="01_项目介绍与架构.html">01 项目介绍与架构</a><a href="02_安装使用与接口契约.html">02 安装使用与接口契约</a><a href="03_调用链与通信初始化.html">03 调用链与通信初始化</a><a href="04_Dispatch执行流程.html">04 Dispatch执行流程</a><a href="05_Combine执行流程.html">05 Combine执行流程</a><a href="06_内存布局与算例.html">06 内存布局与算例</a><a href="07_测试性能与同类实现对照.html">07 测试性能与同类实现对照</a><a href="08_源码索引与证据.html">08 源码索引与证据</a></nav><main><h1 id="_1">项目介绍与架构</h1>
+<h2 id="_2">定位与功能范围</h2>
+<p>MoE 的每个源 token 选择 K 个专家，专家分布在 P 个 rank。通信库需要把 token 送到对应专家所在 rank，再把专家输出放回源 rank 的原 token 位置。DeepEP-Ascend 将通信、路由布局变换和归约组合起来，减少由多次普通 collective 加上 permutation 所产生的中间操作。</p>
+<p>本版本 README 声明对齐 NVIDIA DeepEP 的 EPBuffer V2.5 风格 API；“API 对齐”不代表所有参数具有相同执行语义。Ascend 实际支持 expanded BF16/FP8 dispatch、BF16 combine、cached handle、专家 padding、确定性排序、延迟 epilogue。源码入口见 <a href="../deep_ep/buffers/ep.py">deep_ep/buffers/ep.py:163</a>。</p>
+<table>
+<thead>
+<tr>
+<th>模块</th>
+<th>Python 入口</th>
+<th>工作与边界</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>EP</td>
+<td><code>EPBuffer</code>、<code>EPHandle</code></td>
+<td>MoE dispatch/combine；本文重点</td>
+</tr>
+<tr>
+<td>PP</td>
+<td><code>PPBuffer</code></td>
+<td>相邻流水 rank send/recv；实验性</td>
+</tr>
+<tr>
+<td>Engram</td>
+<td><code>EngramBuffer</code></td>
+<td>NPU BF16/FP8 table，按层 fetch hook；实验性，CPU backing 不支持</td>
+</tr>
+<tr>
+<td>Bucket</td>
+<td><code>BucketBuffer</code>、<code>BucketSession</code></td>
+<td>batch all-gather、注册存储和多组 session；reduce-scatter/all-reduce 尚未实现</td>
+</tr>
+<tr>
+<td>公共管理</td>
+<td><code>BufferBase</code>、<code>BufferAllocator</code>、<code>deep_ep.comm</code></td>
+<td>生命周期、容量规划、HCCL handle、barrier 和 stream</td>
+</tr>
+<tr>
+<td>EPLB</td>
+<td><code>lb_prefetch_weights</code>、<code>lb_reduce_grads</code></td>
+<td>保留接口/存储，但 C++ 明确抛未实现错误</td>
+</tr>
+</tbody>
+</table>
+<p>项目不包含完整专家网络，不负责训练优化器，不提供自动 autograd 集成的完整模型。README 的前向/反向 helper 是如何组合通信原语的示例，不是对任意模型直接可用的训练层。</p>
+<h2 id="_3">目录职责</h2>
+<table>
+<thead>
+<tr>
+<th>目录或文件</th>
+<th>职责</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>deep_ep/buffers/ep.py</code></td>
+<td>参数默认值、handle 生命周期、确定性排序、deferred 返回封装</td>
+</tr>
+<tr>
+<td><code>csrc/python_api.cpp</code></td>
+<td><code>_C.EPBuffer</code> 等 pybind 注册</td>
+</tr>
+<tr>
+<td><code>csrc/buffers/ep.hpp</code></td>
+<td>Host 检查、输出与临时张量分配、issue/epilogue 编排</td>
+</tr>
+<tr>
+<td><code>csrc/kernels/ep/*.hpp</code></td>
+<td>生成 C++ 模板实例源码，调用 <code>jit-&gt;compile/launch</code></td>
+</tr>
+<tr>
+<td><code>deep_ep/include/deep_ep/impls/ep/</code></td>
+<td>真正设备实现，四个主要 kernel 与归约工具</td>
+</tr>
+<tr>
+<td><code>deep_ep/include/deep_ep/layout/ep/</code></td>
+<td>token、窗口、workspace 的地址布局</td>
+</tr>
+<tr>
+<td><code>csrc/kernels/comm/</code></td>
+<td>申请内存，HCCL/HCOMM 注册、拓扑查询、端点与 channel</td>
+</tr>
+<tr>
+<td><code>deep_ep/include/deep_ep/comm/</code></td>
+<td>设备端 SQ/CQ、doorbell、barrier</td>
+</tr>
+<tr>
+<td><code>tests/ep/test_ep.py</code></td>
+<td>正确性检查、模式枚举、性能和压力测试</td>
+</tr>
+<tr>
+<td><code>deep_ep/utils/refs.py</code></td>
+<td>PyTorch 分布式参考路由和归约</td>
+</tr>
+<tr>
+<td><code>setup.py</code></td>
+<td>Host 扩展构建及头文件打包</td>
+</tr>
+<tr>
+<td><code>third-party/deep_jit</code></td>
+<td>JIT 子模块；当前本地未初始化</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_4">三条不同的数据路径</h2>
+<p><strong>数据面</strong>：远端 hidden 和 metadata 通过 URMA SQE 指向的地址传输。dispatch 的 hidden 直接从原始输入 GM 读取，metadata 先打包到独立 GM staging；combine 可直接读单个专家输出或读局部归约后的 send buffer。</p>
+<p><strong>控制面</strong>：计数、前缀和、跨 rank barrier 使用 UBMEM 可达的对称地址及原子操作。这里“对称”表示能够通过本地相对偏移找到远端对应字段，不要求每个进程的虚拟地址数值相同。</p>
+<p><strong>本地整理</strong>：MTE2 将 GM 搬到 UB，标量/SIMT/SIMD 处理布局和归约，MTE3 将 UB 写回 GM。payload 不需要经过 CPU；Host 同步只读取映射 host workspace 内的计数通知。</p>
+<h2 id="aiv-jetty">AIV 和 Jetty 的组织</h2>
+<p>设备入口为 <code>__global__ __vector__</code>，并调用 <code>AscendC::InitSocState()</code>。本版本 EP 使用 AIV，SIMT 负责 routing/索引/SQE 等控制密集工作，SIMD 负责 histogram 和归约，MTE 执行批量搬运。没有在这些 EP kernel 中执行 Cube GEMM。</p>
+<p><code>num_sms</code> 在兼容接口中实际表示 AI core 数，Host 乘以运行时 <code>get_num_vec_cores_per_ai_core()</code> 得到 AIV 数。不要把它直接当 AIV 数。README 示例 32 AI cores 对应 64 AIV，是该硬件的比例。</p>
+<p>通信 context 创建时按运行时总 AIV 数申请 Jetty；EP 启动使用其中与当前 AIV 对应的 Jetty，设备代码把每个 Jetty 作为该 AIV 面向所有远端 peer 的发送队列。它不是“每 peer 每 AIV 一套 Jetty”。见 <a href="../csrc/kernels/comm/hccl.hpp">csrc/kernels/comm/hccl.hpp:197</a>。</p>
+<h2 id="_5">与训练和推理的关系</h2>
+<p>训练、prefill、decode 使用同一个 EPBuffer 接口，没有从接口自动切换到另一套 low-latency API。小 token 数仍可走相同 pipeline，但 launch、barrier、epilogue 的固定成本占比会改变，不能从大 batch 带宽推导 decode 延迟。</p>
+<p>局部归约减少跨网传输，但改变 BF16 的归约树；<code>allow_multiple_reduction=True</code> 是硬要求。数值验收应使用匹配归约顺序的参考，而不是把不同归约树下逐位相等当作理所当然。</p><footer>源码基线 3b25377d04b24fc6154698ded78a2bcb2c59afff · 静态分析，图示不代表实测耗时</footer></main></html>

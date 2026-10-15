@@ -1,0 +1,73 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>04_Dispatch执行流程</title><style>body{margin:0;background:#f4f6fa;color:#18283b;font:16px/1.8 "Segoe UI","Microsoft YaHei",sans-serif}nav{position:fixed;width:235px;top:0;bottom:0;overflow:auto;padding:25px 18px;background:#132b43;color:white;box-sizing:border-box}nav a{display:block;color:#d7e9fb;text-decoration:none;margin:12px 0;font-size:14px}nav strong{font-size:20px}main{margin-left:235px;max-width:1080px;padding:38px 48px 90px}h1{font-size:32px;line-height:1.4;color:#163c60}h2{margin-top:42px;border-bottom:2px solid #d9e5f1;padding-bottom:8px;color:#24547c}a{color:#126ca0}table{border-collapse:collapse;width:100%;font-size:14px;display:block;overflow:auto;background:white}td,th{border:1px solid #cdd8e4;padding:9px 12px;vertical-align:top}th{background:#e7eff8}pre{background:#132b43;color:#edf5fd;padding:20px;overflow:auto;border-radius:8px;line-height:1.6;font-size:13px}code{font-family:Consolas,"Microsoft YaHei",monospace;overflow-wrap:anywhere}p code,li code,td code{background:#e6edf4;padding:2px 4px;border-radius:3px}blockquote{border-left:4px solid #3685b7;margin-left:0;padding-left:18px}footer{margin-top:45px;border-top:1px solid #ccc;padding-top:12px;color:#62768a;font-size:13px}.source{white-space:pre;font:13px/1.65 Consolas,monospace;background:white;padding:20px;overflow:auto}.line{display:block}.line:target{background:#fff0b0}.ln{display:inline-block;width:55px;color:#789;text-decoration:none;user-select:none}.banner{padding:18px;background:#e5effa;border-radius:10px}.flow{display:flex;flex-wrap:wrap;gap:9px;margin:25px 0}.flow span{padding:12px;background:#dae8f7;border:1px solid #b4ccdf;border-radius:6px;font-size:14px}@media(max-width:900px){nav{position:relative;width:auto}main{margin:0;padding:22px}nav a{display:inline-block;margin:5px 12px 5px 0}}@media print{nav{display:none}main{margin:0;padding:0}pre{white-space:pre-wrap;color:black;background:#eee}}main img{display:block;width:100%;height:auto;border:1px solid #d5e0ea;border-radius:8px;background:white} main a:has(img){display:block;cursor:zoom-in}</style><nav><strong>DeepEP Ascend</strong><p>源码详解 · 2026-10-14</p><a href="00_阅读入口.html">00 阅读入口</a><a href="01_项目介绍与架构.html">01 项目介绍与架构</a><a href="02_安装使用与接口契约.html">02 安装使用与接口契约</a><a href="03_调用链与通信初始化.html">03 调用链与通信初始化</a><a href="04_Dispatch执行流程.html">04 Dispatch执行流程</a><a href="05_Combine执行流程.html">05 Combine执行流程</a><a href="06_内存布局与算例.html">06 内存布局与算例</a><a href="07_测试性能与同类实现对照.html">07 测试性能与同类实现对照</a><a href="08_源码索引与证据.html">08 源码索引与证据</a></nav><main><h1 id="dispatch">Dispatch 执行流程</h1>
+<h2 id="_1">执行与布局图解</h2>
+<p>图中箭头表示代码依赖，阶段位置不代表实测时间；内存块不按字节比例。点击 SVG 链接可查看矢量原图。</p>
+<h3 id="dispatch_1">Dispatch 全链路与两类接收布局</h3>
+<p><a href="assets/dispatch-flow.svg" target="_blank"><img alt="Dispatch 全链路与两类接收布局" src="assets/dispatch-flow.svg" loading="lazy"></a></p>
+<p><a href="assets/dispatch-flow.svg">打开 SVG 矢量图</a> · <a href="assets/dispatch-flow.png">打开 PNG 原图</a></p>
+<h3 id="dispatch-issue">Dispatch issue 核内流水与发布条件</h3>
+<p><a href="assets/dispatch-pipeline.svg" target="_blank"><img alt="Dispatch issue 核内流水与发布条件" src="assets/dispatch-pipeline.svg" loading="lazy"></a></p>
+<p><a href="assets/dispatch-pipeline.svg">打开 SVG 矢量图</a> · <a href="assets/dispatch-pipeline.png">打开 PNG 原图</a></p>
+<h3 id="dispatch-copy-epilogue">Dispatch copy epilogue 分阶段流水</h3>
+<p><a href="assets/dispatch-epilogue.svg" target="_blank"><img alt="Dispatch copy epilogue 分阶段流水" src="assets/dispatch-epilogue.svg" loading="lazy"></a></p>
+<p><a href="assets/dispatch-epilogue.svg">打开 SVG 矢量图</a> · <a href="assets/dispatch-epilogue.png">打开 PNG 原图</a></p>
+<h2 id="_2">输入输出与分工</h2>
+<p>记 P 为 rank 数，E 为总专家数，L=E/P，K 为 top-k，T 为实际输入 token 数，M 为每 rank 最大容量，V 为 AIV 数。专家 e 的 rank 为 <code>e//L</code>。同一 token 的多个专家若在同一 rank，只发送一份 hidden 和一份包含所有 top-k 的 metadata，接收端再展开。</p>
+<p>一个 AIV 负责连续的输入容量片段，长度 <code>ceil(M/V)</code>，实际范围与 T 截断。它启动 512 线程 SIMT persistent worker，同时以标量/MTE 流水准备 metadata 和本地 hidden copy。多数 AIV 都参与发送与局部统计；core 0/1 额外承担全局专家/rank 计数汇总，不能照搬其他实现“单独 C 个计数核与 D 个发送核”的分法。</p>
+<pre><code class="language-text">dispatch_impl 基础 barrier
+ ├─ SIMT worker：routing → histogram → prefix → slot/SGE → SQE
+ │        └─ 发布 local_copy_ready，等待 metadata_ready
+ └─ 标量/MTE：准备 metadata staging → 发布 metadata_ready
+          └─ 等 local_copy_ready → 本地 hidden GM→UB→GM
+ SIMT：复制本地 metadata，汇总远端计数与 psum
+ 标量等待 SIMT 完成 → advance SQ → doorbell
+ [可选 benchmark drain]
+      ↓ EventOverlap hook / 立即 epilogue
+ [正常模式 drain + barrier]
+ histogram → AIV 间 expert prefix → 接收数据分段搬入 UB
+ → 按 expert 展开 → 写 metadata → padding
+</code></pre>
+<h2 id="simt">第一步 SIMT 路由与去重</h2>
+<p><code>simt_persistent_worker</code> 先清理 UB histogram、SQE 计数、local-copy slot 与 inverse SGE map。非 cached 模式按最小覆盖 K 的 2 次幂划分 warp 内小组，例如 K=6 时每 token 8 lane。</p>
+<p>每个有效 top-k lane 读取专家 e：若 e≥0，给 expert histogram 加一；再计算目标 rank，并在当前 token 的 routing group 内去重。去重后每个 rank 只保留一条发送 entry。其 <code>rank_histogram[rank]</code> 的 atomic-add 返回值就是该 AIV 发往该 rank 的局部 slot。</p>
+<p>由此专家计数与 rank 计数不同：同 token 在同 rank 有两个专家时，expert 总数增加 2，rank 去重计数只增加 1。远端 entry 分配 SGE pair，本地 entry 记录 local copy slot。见 <a href="../deep_ep/include/deep_ep/impls/ep/dispatch.hpp">deep_ep/include/deep_ep/impls/ep/dispatch.hpp:181</a>。</p>
+<h2 id="aiv">第二步 跨 AIV 前缀和与发送地址</h2>
+<p>各 AIV 将 local rank histogram 写入 workspace，其他核读取完成 tag 后，对同一目标 rank 的 AIV counts 求 exclusive prefix。最终 slot 等于：</p>
+<pre><code class="language-text">dst_slot(token,dst_rank)
+  = sum(count[earlier_AIV,dst_rank]) + local_slot
+</code></pre>
+<p>这保证同一源 rank 的各 AIV 写目标 rank 的 source partition 时不重叠。源 rank 分区偏移为 <code>source_rank * M * token_bytes</code>，slot 在 <code>[0,M)</code> 内。</p>
+<p>路由结果写入 handle 的 <code>[T,K]</code> <code>dst_buffer_slot_idx</code> 与 <code>dst_gsge_idx</code>。重复目标 rank、masked 项没有独立 slot/SGE；本地 copy 的 SGE 为 -1。cached 模式直接读取这两张表重建 inverse SGE mapping，跳过路由统计及远端计数交换。</p>
+<h2 id="metadata-copy">第三步 metadata 流水与本地 copy</h2>
+<p>非 cached metadata 包含 scale packs、topk_idx、topk_weights 和 <code>src_global_idx=source_rank*M+token_idx</code>；cached 仅重新运输 scale 和 weights，原路由与 source metadata 从 handle 复用。</p>
+<p>标量/MTE 分批将 metadata 搬进 UB，补入 global index，再 MTE3 写入 <code>metadata_send_buffer</code>。stage 大小依 UB 预算选择每批 64 或 4 token，metadata stage 最多 8；hidden stage 使用剩余 UB，最多 8。</p>
+<p>FP8 scale 行主序走二维 burst，列主序走 NDDMA stride 描述。metadata 完成后发布 UB 标志 <code>metadata_ready</code>。SIMT 在该标志之后将 self-rank metadata 复制到本地接收窗口。hidden 的 self-rank 路径由 MTE2 GM→UB、MTE3 UB→本地接收窗口完成，不走远端 URMA。</p>
+<p><code>local_copy_ready</code> 与 <code>metadata_ready</code> 是核内两个执行侧的生产消费关系；它们不是远端 payload-ready 标志。见 <a href="../deep_ep/include/deep_ep/impls/ep/dispatch.hpp">deep_ep/include/deep_ep/impls/ep/dispatch.hpp:688</a>。</p>
+<h2 id="sqe">第四步 构造 SQE 与发布</h2>
+<p>每条发送 entry 提供两段源地址：原始 x 中的 hidden，以及 metadata staging。默认一条 SQE 最多含 6 个 SGE pair，因而最多 12 个 SGE：</p>
+<pre><code class="language-text">48B SQE header + 12 * 16B SGE = 240B
+固定预留 4 * 64B WQEBB = 256B / SQE slot
+</code></pre>
+<p>一条 SQE 将多段 hidden+metadata 写入同目标 rank 的连续 record slots。header 指定远端起点；每个 pair 描述一条 record 的两段源数据。未填满 slot 的剩余 WQEBB 使用相应 NOP 处理，避免队列解释错误。最后物理 SQE 请求 strong order 与 CQE。</p>
+<p>SIMT 用 bypass store 写 SQ，标量等待 metadata、本地 copy、SIMT 完成后 <code>advance_sq</code> 并 ring doorbell。该主路径不是每写一个 token 就敲一次 doorbell。SQ 容量上界、16 位索引和 4 WQEBB 对齐均有断言。见 <a href="../deep_ep/include/deep_ep/impls/ep/dispatch.hpp">deep_ep/include/deep_ep/impls/ep/dispatch.hpp:357</a>、<a href="../deep_ep/include/deep_ep/impls/ep/dispatch.hpp">deep_ep/include/deep_ep/impls/ep/dispatch.hpp:853</a>。</p>
+<h2 id="psum">第五步 计数交换与两个 psum</h2>
+<p>专家 histogram 在本 rank 聚合 V 个 AIV 的贡献，core 0 向负责专家的目标 rank 原子累加。目标 rank 等 P 个源 rank 到达，记录实际 count，并可累加到 <code>cumulative_local_expert_recv_stats</code>。rank histogram 则将每源 rank 的去重发送总数散布到目标，core 1 汇总。</p>
+<p>状态是 32 位整型：高 8 位为 arrival count，低 24 位为 value。原子加可同时累计“来了几份”和“有多少 token”。因此必须限制 arrival≤255、value≤2²⁴−1，不能因公共数组容量为 256 ranks 就声称该 dispatch 支持 EP256。</p>
+<p>专家 count 为 <code>c[e]</code>，则：</p>
+<pre><code class="language-text">expert_start[e] = Σ(j&lt;e) align(c[j],A)
+expert_psum[e]  = expert_start[e] + c[e]       # 有效末尾
+physical_end[e] = align(expert_psum[e],A)     # padding 后末尾
+rank_psum[r]   = Σ(s≤r) deduplicated_recv_count[s]
+</code></pre>
+<p>Host count 通知中的每专家值是 <code>align(c[e],A)</code>；Python list 因此是补齐后的分配长度，而 <code>num_unaligned_recv_tokens_per_expert</code> 是有效数量。见 <a href="../deep_ep/include/deep_ep/impls/ep/dispatch.hpp">deep_ep/include/deep_ep/impls/ep/dispatch.hpp:505</a>。</p>
+<h2 id="copy-epilogue">第六步 Copy epilogue</h2>
+<p>正常模式先 drain 所有活动 Jetty，并经跨 rank barrier 确保来源完成，才能读窗口。然后使用 <code>rank_psum</code> 将“每源 rank 固定 M 容量窗口”遍历成无空洞的逻辑接收流。<code>PSumIterator</code> 把全局流位置映射回 source-rank partition，批次不跨当前连续分区。</p>
+<p>非 cached 时，各 AIV 对其负责接收流重新计算本地专家 histogram；UB histogram 采用 4 个 32768B stage。每核先清空 workspace 的 prefix row，barrier 后以 atomic MTE3 将自己的 count 广播累加到所有后续 AIV 的行，形成 exclusive prefix，再加全局 expert_start。这样每 AIV 给某专家分配连续且互不冲突的输出槽位。</p>
+<p>主 copy 流水采用目标约 64KiB 的 token stage 和两个 metadata stage，stage 数还受 UB 与事件数量限制。每条接收 token 逐个 top-k 检查专家是否属于本 rank；属于就将同一 hidden/SF 写到相应 expanded 行，并写该 j 对应的 weight。</p>
+<p>同时为每条去重接收 token 生成一行 int32 metadata：</p>
+<pre><code class="language-text">[expanded_slot_for_topk_0, ..., expanded_slot_for_topk_K-1,
+ source_global_idx, master_topk_idx]
+</code></pre>
+<p>不属于本 rank 的槽位为 -1；master 为属于本 rank 的最后一个 top-k 下标。这个 master 决定 combine 的 partial 写到哪个槽组，不是“主专家”。cached 路径直接复用 metadata 的 expanded slots，不再 histogram、分配槽或重写 metadata。见 <a href="../deep_ep/include/deep_ep/impls/ep/dispatch_copy_epilogue.hpp">deep_ep/include/deep_ep/impls/ep/dispatch_copy_epilogue.hpp:398</a>、<a href="../deep_ep/include/deep_ep/impls/ep/dispatch_copy_epilogue.hpp">deep_ep/include/deep_ep/impls/ep/dispatch_copy_epilogue.hpp:463</a>。</p>
+<p>最后 <code>do_zero_padding</code> 将每专家有效末尾至对齐末尾的 x、weights、SF 清零；每专家 padding 可拆为最多四段处理。全容量尾部与无效 metadata 行没有由此获得全局清零保证。</p>
+<h2 id="_3">性能设计的含义</h2>
+<p>rank 去重减少跨网重复 hidden；SGE 从 x 直接读减少全量发送打包；本地 copy 避免 self 网络往返；SIMT 与标量/MTE 并行准备不同内容；cached 路径省去路由与布局重建；deferred epilogue 给外部计算留下 URMA 飞行窗口。这些是源码表达的设计意图，实际收益取决于路由分布、HBM/网络争用和硬件栈。</p><footer>源码基线 3b25377d04b24fc6154698ded78a2bcb2c59afff · 静态分析，图示不代表实测耗时</footer></main></html>

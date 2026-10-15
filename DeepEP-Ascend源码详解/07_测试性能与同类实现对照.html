@@ -1,0 +1,205 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>07_测试性能与同类实现对照</title><style>body{margin:0;background:#f4f6fa;color:#18283b;font:16px/1.8 "Segoe UI","Microsoft YaHei",sans-serif}nav{position:fixed;width:235px;top:0;bottom:0;overflow:auto;padding:25px 18px;background:#132b43;color:white;box-sizing:border-box}nav a{display:block;color:#d7e9fb;text-decoration:none;margin:12px 0;font-size:14px}nav strong{font-size:20px}main{margin-left:235px;max-width:1080px;padding:38px 48px 90px}h1{font-size:32px;line-height:1.4;color:#163c60}h2{margin-top:42px;border-bottom:2px solid #d9e5f1;padding-bottom:8px;color:#24547c}a{color:#126ca0}table{border-collapse:collapse;width:100%;font-size:14px;display:block;overflow:auto;background:white}td,th{border:1px solid #cdd8e4;padding:9px 12px;vertical-align:top}th{background:#e7eff8}pre{background:#132b43;color:#edf5fd;padding:20px;overflow:auto;border-radius:8px;line-height:1.6;font-size:13px}code{font-family:Consolas,"Microsoft YaHei",monospace;overflow-wrap:anywhere}p code,li code,td code{background:#e6edf4;padding:2px 4px;border-radius:3px}blockquote{border-left:4px solid #3685b7;margin-left:0;padding-left:18px}footer{margin-top:45px;border-top:1px solid #ccc;padding-top:12px;color:#62768a;font-size:13px}.source{white-space:pre;font:13px/1.65 Consolas,monospace;background:white;padding:20px;overflow:auto}.line{display:block}.line:target{background:#fff0b0}.ln{display:inline-block;width:55px;color:#789;text-decoration:none;user-select:none}.banner{padding:18px;background:#e5effa;border-radius:10px}.flow{display:flex;flex-wrap:wrap;gap:9px;margin:25px 0}.flow span{padding:12px;background:#dae8f7;border:1px solid #b4ccdf;border-radius:6px;font-size:14px}@media(max-width:900px){nav{position:relative;width:auto}main{margin:0;padding:22px}nav a{display:inline-block;margin:5px 12px 5px 0}}@media print{nav{display:none}main{margin:0;padding:0}pre{white-space:pre-wrap;color:black;background:#eee}}main img{display:block;width:100%;height:auto;border:1px solid #d5e0ea;border-radius:8px;background:white} main a:has(img){display:block;cursor:zoom-in}</style><nav><strong>DeepEP Ascend</strong><p>源码详解 · 2026-10-14</p><a href="00_阅读入口.html">00 阅读入口</a><a href="01_项目介绍与架构.html">01 项目介绍与架构</a><a href="02_安装使用与接口契约.html">02 安装使用与接口契约</a><a href="03_调用链与通信初始化.html">03 调用链与通信初始化</a><a href="04_Dispatch执行流程.html">04 Dispatch执行流程</a><a href="05_Combine执行流程.html">05 Combine执行流程</a><a href="06_内存布局与算例.html">06 内存布局与算例</a><a href="07_测试性能与同类实现对照.html">07 测试性能与同类实现对照</a><a href="08_源码索引与证据.html">08 源码索引与证据</a></nav><main><h1 id="_1">测试性能与同类实现对照</h1>
+<h2 id="_2">测试入口与已有覆盖</h2>
+<p><code>tests/ep/test_ep.py</code> 使用 torch multiprocessing spawn，每进程初始化 NPU/HCCL，并执行 reference 对照。默认模式枚举为 alignment <code>{128,1}</code> × BF16/FP8 × bias <code>{0,1,2}</code>，其中 FP8 再覆盖 SF 行/列主序，因此基础矩阵为 18 种模式；还包含 cached、无 weights、确定性等条件检查。见 <a href="../tests/ep/test_ep.py">tests/ep/test_ep.py:25</a>。</p>
+<table>
+<thead>
+<tr>
+<th>检查</th>
+<th>源码覆盖内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>dispatch hidden/SF</td>
+<td>expanded slots 取回后与 reference 精确比对，FP8 以字节检查</td>
+</tr>
+<tr>
+<td>metadata</td>
+<td>source id、有效 slot、唯一性、边界、去重 rank count</td>
+</tr>
+<tr>
+<td>expert count</td>
+<td>实际 count、CPU list 对齐长度、累计统计</td>
+</tr>
+<tr>
+<td>padding</td>
+<td>x/SF 清零，cached 路径还检查 weights padding</td>
+</tr>
+<tr>
+<td>combine</td>
+<td>与匹配局部归约的 reference <code>torch.equal</code>，恢复 weights 与原始一致</td>
+</tr>
+<tr>
+<td>cached</td>
+<td>更新 x/SF/weights，保持原 handle 和 routing 映射不变</td>
+</tr>
+<tr>
+<td>optional weights</td>
+<td>有/无权重返回路径</td>
+</tr>
+<tr>
+<td>deterministic</td>
+<td>重复 dispatch 的行序与数据一致</td>
+</tr>
+</tbody>
+</table>
+<p>这些是测试代码中可见的检查项，不代表本地已经执行通过。当前 Windows 环境没有完成 CANN 编译、设备执行或网络拓扑验证。</p>
+<h2 id="_3">目标服务器的运行顺序</h2>
+<p>先在满足拓扑条件的服务器做 BF16 单模式正确性，再扩展 FP8、cached、no-sync、deterministic、压力与性能。示例命令均在仓库根目录运行，且在执行前 source CANN 环境。</p>
+<pre><code class="language-bash">export EP_AVOID_RECORD_STREAM=1
+export TASK_QUEUE_ENABLE=0
+export HCCL_IF_BASE_PORT=48361
+python tests/ep/test_ep.py --num-processes 8 --num-ai-cores 32 \
+  --num-tokens 4096 --hidden 7168 --num-topk 6 --num-experts 256 \
+  --dispatch-dtype bf16 --test-first-only --skip-perf-test
+
+python tests/ep/test_ep.py --num-processes 8 --num-ai-cores 32 \
+  --num-tokens 4096 --hidden 7168 --num-topk 6 --num-experts 256 \
+  --dispatch-dtype fp8 --skip-perf-test
+
+python tests/ep/test_ep.py --num-processes 8 --num-ai-cores 32 \
+  --num-tokens 4096 --hidden 7168 --num-topk 6 --num-experts 256 \
+  --do-cpu-sync 0 --deterministic --skip-perf-test
+</code></pre>
+<p><code>--test-first-only</code> 会提前结束矩阵，不能据此声称全功能通过。<code>--skip-check</code> 会跳过正确性，不能用于验收。<code>--do-pressure-test</code> 最多循环十亿次，需主动规划运行时间；<code>--reuse-ep-buffer</code> 决定压力阶段是否复用 buffer。</p>
+<p>仓库脚本中 <code>WORLD_SIZE</code> 是节点数，<code>RANK</code> 是节点编号，不是 torchrun 常规全局进程数/rank：</p>
+<pre><code class="language-bash"># 每节点都执行同一命令；以下为节点0，另一节点将 RANK 改为1
+export MASTER_ADDR=&lt;node0-address&gt;
+export MASTER_PORT=8361
+export WORLD_SIZE=2
+export RANK=0
+python tests/ep/test_ep.py --num-processes 8 --skip-perf-test
+</code></pre>
+<p>其 global rank=<code>node_rank*local_processes+local_rank</code>。能启动多节点进程并不自动说明跨节点的 UBMEM/UBC_CTP 条件满足。见 <a href="../deep_ep/utils/envs.py">deep_ep/utils/envs.py:77</a>。</p>
+<h2 id="_4">性能口径</h2>
+<p>测试 <code>benchmark()</code> 分两轮移动 barrier：一轮 issue 包含 URMA drain，测“通信完成”和独立 epilogue；另一轮 issue 不包含 drain，测提交阶段。预热10次、正式50次、flush L2，并有通信 profiling barrier。首次 JIT 不应混入稳态性能解释。</p>
+<p>输出里的 URMA 带宽分子沿用逻辑 tensor bytes 与去重接收数，包含 local tokens；它不是纯链路字节计数。dispatch 逻辑字节与 wire record padding/source id 不完全相同，combine 逻辑带宽又未把全部尾部 metadata 纳入。因此不能简单拿它和网卡原始线速或其他框架“端到端吞吐”比较。</p>
+<p>本提交 README 的 EP8～EP128 数值是指定 PoC HDK、CANN、H=7168、K=6、E=256、capacity=16384、A=128、32 AI cores 条件下的项目记录，排除了最终 epilogue。复现报告应分别保留 issue、issue+drain、epilogue、端到端含专家计算的边界，不使用本次静态说明作为性能背书。</p>
+<h2 id="_5">支持约束需要取交集</h2>
+<table>
+<thead>
+<tr>
+<th>条件</th>
+<th>当前源码依据及解释</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>E</td>
+<td>persistent worker <code>kNumExperts&lt;=kNumThreads</code>，线程数512；公共数组2048不等于 EP 可用2048</td>
+</tr>
+<tr>
+<td>P</td>
+<td>公共上限256，但 dispatch arrival tag 只到255；多 rank 还要求偶数，因此不能宣称EP256</td>
+</tr>
+<tr>
+<td>V</td>
+<td>launch_dispatch 要求≥16，Jetty实例要求≤64；还受设备实际 AIV 数限制</td>
+</tr>
+<tr>
+<td>K</td>
+<td><code>1≤K≤32</code>，还受 combine UB ring 容量限制</td>
+</tr>
+<tr>
+<td>E/P</td>
+<td>必须整除；copy epilogue local experts≤512</td>
+</tr>
+<tr>
+<td>A</td>
+<td>正2次幂，影响输出 padding 和容量</td>
+</tr>
+<tr>
+<td>H</td>
+<td>combine Host 要求 H%128=0；dispatch zero-padding 要求 hidden bytes 对 vector zero 大小对齐，FP8 情况要独立核对</td>
+</tr>
+<tr>
+<td>M</td>
+<td>&gt;0，T≤M；还受24位count、INT_MAX expanded行、SQ深度与UB预算限制</td>
+</tr>
+<tr>
+<td>多 rank</td>
+<td>UBMEM直接可达、UBC_CTP、偶数rank、同一本地endpoint条件</td>
+</tr>
+<tr>
+<td>dtype</td>
+<td>dispatch BF16或带SF的E4M3FN，combine BF16；不能外推FP16/FP4/MXFP8支持</td>
+</tr>
+</tbody>
+</table>
+<p>这些是必要约束，不是所有满足条件组合都通过的充分证明。没有遍历所有shape或上板矩阵。</p>
+<h2 id="_6">与已有三处资料的对应关系</h2>
+<table>
+<thead>
+<tr>
+<th>参考资料</th>
+<th>可复用的理解方法</th>
+<th>不能直接移植的结论</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>workspace_pta/callchain-analysis/MoE_Distribute系列_API到Kernel通信路径分析.md</code></td>
+<td>区分Python API、Host接口、通信模板、执行引擎</td>
+<td>DeepEP不走文中op-plugin→ACLNN V2/V3/V4→OPP tiling链</td>
+</tr>
+<tr>
+<td><code>pta_moe_test/docs/moe_dispatch_combine_a5_analysis/moe_dispatch_combine_a5_kernel_analysis.md</code></td>
+<td>按AIV职责、执行次序、窗口偏移、同步条件走读</td>
+<td>文中480B payload+32B flags、AllToAll/CalCumSum分核、expandIdx三元组并非本项目格式</td>
+</tr>
+<tr>
+<td><code>moe_mega_deep_test/docs/implementation-v1.md</code></td>
+<td>区分原始调用与reference、计时边界、两级数值行为</td>
+<td>MegaMoe/FusedDeepMoe含GMM/激活等融合流程，不能视作DeepEP dispatch/combine实现</td>
+</tr>
+</tbody>
+</table>
+<p>本次阅读的是上述当前本地文档；它们所引用的历史 commit 与源码快照归属于各自项目。DeepEP 的结论均以上述分析提交对应的仓库实现为准。</p>
+<h2 id="_7">排障入口</h2>
+<table>
+<thead>
+<tr>
+<th>现象</th>
+<th>优先定位</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>_C</code> 导入失败</td>
+<td>setup链接库、torch_npu/CANN ABI、实际安装包路径</td>
+</tr>
+<tr>
+<td>缺DeepJIT头文件/首次调用编译失败</td>
+<td>子模块状态、CANN路径、Bisheng、EP_JIT_DEBUG与模板静态断言</td>
+</tr>
+<tr>
+<td>无UB_MEM或UBC_CTP链接</td>
+<td><code>get_physical_domain_size</code>、HCCL rank graph所选layer和channel资源</td>
+</tr>
+<tr>
+<td><code>reduction timeout</code></td>
+<td>Host count通知，所有rank调用次序、路由、kernel是否到达计数阶段</td>
+</tr>
+<tr>
+<td><code>DeepEP HCOMM scalar CQ poll timeout</code></td>
+<td>SQ发布、CQ owner/head、endpoint与设备运行日志</td>
+</tr>
+<tr>
+<td><code>DeepEP HCOMM scalar CQE failed</code></td>
+<td>status/substatus；先记录错误，不从一个码臆断唯一根因</td>
+</tr>
+<tr>
+<td><code>DeepEP barrier timeout</code></td>
+<td>哪个rank未达barrier、是否已有上游device错误、stream依赖</td>
+</tr>
+<tr>
+<td>结果错但无异常</td>
+<td>weights是否应用一次、handle/路由是否匹配、expert输出行序与有效长度</td>
+</tr>
+<tr>
+<td>显存超出hint</td>
+<td>recv/send/metadata/排序临时tensor，no-sync上界，workspace及大页资源</td>
+</tr>
+</tbody>
+</table>
+<p><code>EP_BUFFER_DEBUG</code> 在Python中按环境字符串真值判断，设置字符串 <code>0</code> 仍可能打印，关闭应 unset。<code>EP_JIT_*</code> 配置由 DeepJIT 消费；本地子模块未展开时，不能将 README 默认值当成已核验的内部实现。<code>EP_AVOID_RECORD_STREAM</code> 对Bucket是显式要求，EP source lifetime则由epilogue capture另行保护。</p><footer>源码基线 3b25377d04b24fc6154698ded78a2bcb2c59afff · 静态分析，图示不代表实测耗时</footer></main></html>

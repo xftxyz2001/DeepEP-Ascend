@@ -1,0 +1,16 @@
+{
+  "figures": 9,
+  "chapters": 9,
+  "source_files": 86,
+  "local_links_checked": 341,
+  "text_characters": 44528,
+  "example": "syntax-only",
+  "device_tests": "not run",
+  "visual_preview": "9 PNG figures visually inspected; full HTML browser preview remains unverified due to file URL policy",
+  "source_links_checked": 106,
+  "source_storage": "repository files; no bundled copies",
+  "source_hashes_verified": 86,
+  "source_hashes_verified_commit": "3b25377d04b24fc6154698ded78a2bcb2c59afff",
+  "link_validation": "local target existence; browser source-line navigation not guaranteed",
+  "updated": "2026-10-15"
+}

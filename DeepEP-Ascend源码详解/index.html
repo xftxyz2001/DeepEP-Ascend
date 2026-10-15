@@ -1,0 +1,116 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>00_阅读入口</title><style>body{margin:0;background:#f4f6fa;color:#18283b;font:16px/1.8 "Segoe UI","Microsoft YaHei",sans-serif}nav{position:fixed;width:235px;top:0;bottom:0;overflow:auto;padding:25px 18px;background:#132b43;color:white;box-sizing:border-box}nav a{display:block;color:#d7e9fb;text-decoration:none;margin:12px 0;font-size:14px}nav strong{font-size:20px}main{margin-left:235px;max-width:1080px;padding:38px 48px 90px}h1{font-size:32px;line-height:1.4;color:#163c60}h2{margin-top:42px;border-bottom:2px solid #d9e5f1;padding-bottom:8px;color:#24547c}a{color:#126ca0}table{border-collapse:collapse;width:100%;font-size:14px;display:block;overflow:auto;background:white}td,th{border:1px solid #cdd8e4;padding:9px 12px;vertical-align:top}th{background:#e7eff8}pre{background:#132b43;color:#edf5fd;padding:20px;overflow:auto;border-radius:8px;line-height:1.6;font-size:13px}code{font-family:Consolas,"Microsoft YaHei",monospace;overflow-wrap:anywhere}p code,li code,td code{background:#e6edf4;padding:2px 4px;border-radius:3px}blockquote{border-left:4px solid #3685b7;margin-left:0;padding-left:18px}footer{margin-top:45px;border-top:1px solid #ccc;padding-top:12px;color:#62768a;font-size:13px}.source{white-space:pre;font:13px/1.65 Consolas,monospace;background:white;padding:20px;overflow:auto}.line{display:block}.line:target{background:#fff0b0}.ln{display:inline-block;width:55px;color:#789;text-decoration:none;user-select:none}.banner{padding:18px;background:#e5effa;border-radius:10px}.flow{display:flex;flex-wrap:wrap;gap:9px;margin:25px 0}.flow span{padding:12px;background:#dae8f7;border:1px solid #b4ccdf;border-radius:6px;font-size:14px}@media(max-width:900px){nav{position:relative;width:auto}main{margin:0;padding:22px}nav a{display:inline-block;margin:5px 12px 5px 0}}@media print{nav{display:none}main{margin:0;padding:0}pre{white-space:pre-wrap;color:black;background:#eee}}main img{display:block;width:100%;height:auto;border:1px solid #d5e0ea;border-radius:8px;background:white} main a:has(img){display:block;cursor:zoom-in}</style><nav><strong>DeepEP Ascend</strong><p>源码详解 · 2026-10-14</p><a href="00_阅读入口.html">00 阅读入口</a><a href="01_项目介绍与架构.html">01 项目介绍与架构</a><a href="02_安装使用与接口契约.html">02 安装使用与接口契约</a><a href="03_调用链与通信初始化.html">03 调用链与通信初始化</a><a href="04_Dispatch执行流程.html">04 Dispatch执行流程</a><a href="05_Combine执行流程.html">05 Combine执行流程</a><a href="06_内存布局与算例.html">06 内存布局与算例</a><a href="07_测试性能与同类实现对照.html">07 测试性能与同类实现对照</a><a href="08_源码索引与证据.html">08 源码索引与证据</a></nav><main><h1 id="deepep-ascend">DeepEP Ascend 项目与算子源码详解</h1>
+<p>DeepEP-Ascend 是面向昇腾 NPU 的通信库。EP 路径把 MoE 路由转换为跨 rank 数据传输、专家连续输入和反向归约；专家 GEMM、激活及路由权重乘法仍由调用方完成。其关键设计是 <strong>dispatch 按目标 rank 去重传输、接收端按专家展开；combine 在专家 rank 先做局部归约、源 rank 再归约</strong>，以减少同一 token 多次跨网传输。</p>
+<p>分析日期：2026-10-14。原始仓库：<code>deepseek-ai/DeepEP-Ascend</code>。固定提交：<code>3b25377d04b24fc6154698ded78a2bcb2c59afff</code>，分析开始时工作区干净，包公开版本为 <code>1.0.0</code>。本说明是该本地版本的静态源码分析，不是 NPU 正确性或性能实测报告。</p>
+<div class="flow"><span>输入与路由</span><span>→ rank 去重发送</span><span>→ 专家展开</span><span>→ 外部专家计算</span><span>→ 局部归约回传</span><span>→ 最终归约</span></div><h2 id="_1">阅读顺序</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="01_项目介绍与架构.html">项目架构</a></td>
+<td>功能边界、目录、执行单元、通信模型</td>
+</tr>
+<tr>
+<td><a href="02_安装使用与接口契约.html">使用方式</a></td>
+<td>环境、安装、最小示例、FP8、cached handle、异步与训练</td>
+</tr>
+<tr>
+<td><a href="03_调用链与通信初始化.html">调用链</a></td>
+<td>Python → pybind → C++ → JIT → kernel；通信资源与同步</td>
+</tr>
+<tr>
+<td><a href="04_Dispatch执行流程.html">Dispatch 实现</a></td>
+<td>SIMT 路由、计数、SQE、MTE、本地拷贝与 copy epilogue</td>
+</tr>
+<tr>
+<td><a href="05_Combine执行流程.html">Combine 实现</a></td>
+<td>task 调度、局部归约、直接发送、CQ drain、最终归约</td>
+</tr>
+<tr>
+<td><a href="06_内存布局与算例.html">内存布局</a></td>
+<td>字节偏移、workspace、UB、handle、容量计算、路由实例</td>
+</tr>
+<tr>
+<td><a href="07_测试性能与同类实现对照.html">测试与对照</a></td>
+<td>测试矩阵、计时口径、限制、与现有资料的区别</td>
+</tr>
+<tr>
+<td><a href="08_源码索引与证据.html">源码索引</a></td>
+<td>仓库源码、行号、SHA256 与参考资料</td>
+</tr>
+</tbody>
+</table>
+<p>双击同目录 <code>index.html</code> 可离线阅读。源码链接通过相对路径直接指向本仓库文件，链接文字保留分析版本行号；普通浏览器不保证定位到源码行。请保持本目录与仓库的相对位置。所有图示表示依赖和数据组织，不表示实测耗时。</p>
+<h2 id="moe">一次 MoE 数据流</h2>
+<pre><code class="language-text">源 rank: x[T,H] + topk_idx[T,K] + 可选 weights[T,K]
+   ↓ dispatch_impl：按目标 rank 去重、提交 URMA、复制本地数据
+通信窗口：按 source-rank 分区的 token 记录
+   ↓ dispatch_copy_epilogue_impl：排空通信、专家展开、padding
+专家 rank: recv_x[R_expand,H] + recv_weights[R_expand] + handle
+   ↓ 外部专家 GEMM / 激活 / 权重乘法
+专家 rank: BF16 expert_output[R_expand,H]
+   ↓ combine_impl：同 token 同专家 rank 先归约、回传 partial
+源 rank: reduce_buffer[min(P,K),M,record]
+   ↓ combine_reduce_epilogue_impl：排空通信、合并 partial 与 bias
+源 rank: combined_x[T,H]
+</code></pre>
+<h2 id="_2">最需要记住的接口事实</h2>
+<ol>
+<li><code>dispatch(do_expand=True)</code> 是必需条件，默认参数却是 <code>False</code>，照抄默认调用会失败。</li>
+<li><code>combine(topk_weights=...)</code> 不会执行 <code>x * topk_weights</code>；它运输并恢复权重张量。模型应在专家计算侧正确应用一次权重。</li>
+<li><code>.wait()</code> 给当前 stream 建立依赖并执行延迟 epilogue，不等同于 CPU 等待全部设备执行完成。</li>
+<li><code>do_cpu_sync=False</code> 返回的是容量上界张量；真实有效区域由 device counts/metadata 指定，不能把整张量都当有效 token。</li>
+<li>同一 buffer 的通信窗口被 dispatch/combine 复用；必须先完成前一操作的等待与消费，再安全复用。</li>
+<li>当前 EP 路径不经过 <code>aclnnMoeDistributeDispatchV2/V4</code>，也没有 OPP tiling 注册调用链。它直接使用 DeepJIT 实例化设备头文件。</li>
+</ol>
+<h2 id="_3">新增图解索引</h2>
+<table>
+<thead>
+<tr>
+<th>图</th>
+<th>所在章节</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="assets/dispatch-flow.svg">Dispatch 全链路与两类接收布局</a></td>
+<td><a href="04_Dispatch执行流程.html">Dispatch执行流程</a></td>
+</tr>
+<tr>
+<td><a href="assets/dispatch-pipeline.svg">Dispatch issue 核内流水与发布条件</a></td>
+<td><a href="04_Dispatch执行流程.html">Dispatch执行流程</a></td>
+</tr>
+<tr>
+<td><a href="assets/dispatch-epilogue.svg">Dispatch copy epilogue 分阶段流水</a></td>
+<td><a href="04_Dispatch执行流程.html">Dispatch执行流程</a></td>
+</tr>
+<tr>
+<td><a href="assets/combine-flow.svg">Combine 两级归约与回传全流程</a></td>
+<td><a href="05_Combine执行流程.html">Combine执行流程</a></td>
+</tr>
+<tr>
+<td><a href="assets/combine-pipeline.svg">Combine 双 task stage 与 UB ring 依赖</a></td>
+<td><a href="05_Combine执行流程.html">Combine执行流程</a></td>
+</tr>
+<tr>
+<td><a href="assets/token-records.svg">Token record 字节布局</a></td>
+<td><a href="06_内存布局与算例.html">内存布局与算例</a></td>
+</tr>
+<tr>
+<td><a href="assets/dispatch-layout.svg">Dispatch 从 source-major 到 expert-major</a></td>
+<td><a href="06_内存布局与算例.html">内存布局与算例</a></td>
+</tr>
+<tr>
+<td><a href="assets/combine-layout.svg">Combine reduce window 的两个槽组分支</a></td>
+<td><a href="06_内存布局与算例.html">内存布局与算例</a></td>
+</tr>
+<tr>
+<td><a href="assets/ub-layouts.svg">四个 kernel 的 UB 分区与空间复用</a></td>
+<td><a href="06_内存布局与算例.html">内存布局与算例</a></td>
+</tr>
+</tbody>
+</table><footer>源码基线 3b25377d04b24fc6154698ded78a2bcb2c59afff · 静态分析，图示不代表实测耗时</footer></main></html>
